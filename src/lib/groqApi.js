@@ -33,22 +33,17 @@ async function callGroq(messages, options = {}) {
 
 /** 학교 폐교 위험도 예측 */
 export async function predictSchoolClosure(school) {
-  const enrollmentStr = school.enrollment
-    .map((e) => `${e.year}년 ${e.count}명`)
-    .join(', ')
+  const hasEnrollment = school.enrollment && school.enrollment.length > 0
+  const enrollmentStr = hasEnrollment
+    ? school.enrollment.map((e) => `${e.year}년 ${e.count}명`).join(', ')
+    : '데이터 없음'
 
-  const messages = [
-    {
-      role: 'system',
-      content:
-        '당신은 한국 교육 통계를 분석하는 전문가입니다. 학교 신입생 수 추이를 분석하여 폐교 위험도를 평가합니다. 반드시 JSON만 응답하세요.',
-    },
-    {
-      role: 'user',
-      content: `다음 학교의 폐교 위험도를 분석해주세요.
+  // NEIS 검색 학교(신입생 데이터 없음)와 로컬 샘플 학교 분기
+  const userContent = hasEnrollment
+    ? `다음 학교의 폐교 위험도를 분석해주세요.
 
 학교명: ${school.name}
-지역: ${school.region}
+지역: ${school.region || school.address || '알 수 없음'}
 유형: ${school.type}
 연도별 신입생 수: ${enrollmentStr}
 
@@ -58,7 +53,32 @@ export async function predictSchoolClosure(school) {
   "expectedYear": "예상 폐교 연도(예: 2028년 예상) 또는 당분간 안전",
   "analysis": "2~3문장 분석 근거",
   "recommendation": "단기 권고사항 한 문장"
-}`,
+}`
+    : `신입생 통계 데이터 없이 아래 학교의 폐교 위험도를 지역·학교유형 기반으로 추정해주세요.
+
+학교명: ${school.name}
+지역: ${school.region || school.address || '알 수 없음'}
+유형: ${school.type}
+
+한국의 지역별 학령인구 감소 트렌드, 농촌·도시 여부, 학교 유형을 종합적으로 고려해서 분석하세요.
+
+아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이):
+{
+  "risk": "고위험 또는 주의 또는 안전",
+  "expectedYear": "예상 폐교 시기(예: 2030년 이후 주의 필요) 또는 당분간 안전",
+  "analysis": "지역 특성과 학교 유형 기반 2~3문장 분석",
+  "recommendation": "단기 권고사항 한 문장"
+}`
+
+  const messages = [
+    {
+      role: 'system',
+      content:
+        '당신은 한국 교육 통계를 분석하는 전문가입니다. 학교 신입생 수 추이 또는 지역 특성을 바탕으로 폐교 위험도를 평가합니다. 반드시 JSON만 응답하세요.',
+    },
+    {
+      role: 'user',
+      content: userContent,
     },
   ]
 
