@@ -232,8 +232,9 @@ export function calcRiskLevel(school) {
   const last = data[data.length - 1].count
   if (first === 0) return 'high'
   const dropRate = (first - last) / first
-  if (dropRate >= 0.7 || last <= 5) return 'high'
-  if (dropRate >= 0.4 || last <= 20) return 'medium'
+  // 인원수가 많아도 하락세가 뚜렷하면 위험군으로 분류 (AI 기준과 동기화)
+  if (dropRate >= 0.5 || last <= 10) return 'high'
+  if (dropRate >= 0.25 || last <= 30) return 'medium'
   return 'low'
 }
 
