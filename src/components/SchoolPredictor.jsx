@@ -131,8 +131,16 @@ export default function SchoolPredictor() {
     // NEIS/SchoolInfo 학교: 상세 정보 및 학생 수 데이터 가져오기
     setLoading(true)
     try {
-      // 학교알리미 상세 정보 조회
-      const studentInfo = await fetchStudentStatus(school.schoolCode)
+      // 1. 기존 코드로 학교알리미 상세 정보 조회
+      let studentInfo = await fetchStudentStatus(school.schoolCode)
+      
+      // 2. 만약 조회가 안 된다면(NEIS 전용 등), 이름으로 다시 찾아서 재시도
+      if (!studentInfo && !school._isLocal) {
+        const fallbackCode = await findSchoolCodeByName(school.name, school.region || school.address)
+        if (fallbackCode && fallbackCode !== school.schoolCode) {
+          studentInfo = await fetchStudentStatus(fallbackCode)
+        }
+      }
       
       const schoolForAI = {
         name: school.name,

@@ -60,6 +60,21 @@ export async function searchSchoolInfo(schoolName) {
 }
 
 /**
+ * 학교명과 지역으로 학교알리미 학교 코드를 찾음
+ */
+export async function findSchoolCodeByName(schoolName, region) {
+  const schools = await searchSchoolInfo(schoolName)
+  if (!schools || schools.length === 0) return null
+  
+  // 이름과 지역(주소)이 가장 유사한 학교 선택
+  const match = schools.find(s => 
+    s.name === schoolName && (region ? s.address.includes(region.slice(0, 2)) : true)
+  )
+  
+  return match ? match.schoolCode : (schools[0]?.schoolCode || null)
+}
+
+/**
  * 특정 연도의 학년별 학생 수 조회
  */
 async function fetchYearlyGradeStats(schoolCode, year) {
