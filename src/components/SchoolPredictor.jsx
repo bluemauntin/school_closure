@@ -210,8 +210,7 @@ export default function SchoolPredictor() {
         <div className="section-badge">🔮 AI 폐교 예측기</div>
         <h2 className="section-title">우리 학교, 얼마나 위험할까?</h2>
         <p className="section-desc">
-          학교 이름을 검색하면 <strong>전국 모든 학교</strong>를 찾을 수 있습니다.
-          신입생 추이와 함께 Groq AI가 폐교 예상 시기와 위험도를 분석해드립니다.
+          학교 이름을 검색하면 해당 학교의 신입생 추이와 함께 Groq AI가 폐교 예상 시기와 위험도를 분석해드립니다.
         </p>
       </div>
 
@@ -225,7 +224,7 @@ export default function SchoolPredictor() {
         marginBottom: '1rem',
       }}>
         <span>🌐</span>
-        <span>NEIS(교육정보시스템) 연동 — 전국 초·중·고등학교 실시간 검색{import.meta.env.VITE_NEIS_API_KEY ? ' ✅ API 키 연동 완료' : ' (API 키를 등록하면 모든 학교 검색 가능)'}</span>
+        <span>NEIS(교육정보시스템) 연동 — 전국 초·중·고등학교 실시간 검색</span>
       </div>
 
       <div className="search-wrap" ref={wrapRef}>
@@ -350,7 +349,7 @@ export default function SchoolPredictor() {
           </div>
 
           {/* 학교알리미 상세 정보 요약 */}
-          {!loading && prediction && !selected._isLocal && (
+          {!loading && prediction && !selected._isLocal && selected.studentInfo && (
             <div style={{ 
               display: 'grid', 
               gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', 
@@ -363,19 +362,19 @@ export default function SchoolPredictor() {
               <div style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>전체 학생 수</div>
                 <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--accent-orange)' }}>
-                  {selected.studentInfo?.total || '확인중'}명
+                  {selected.studentInfo.total?.toLocaleString() || '-'}명
                 </div>
               </div>
               <div style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>교원 수</div>
                 <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--accent-blue)' }}>
-                  {selected.studentInfo?.teachers || '확인중'}명
+                  {selected.studentInfo.teachers?.toLocaleString() || '-'}명
                 </div>
               </div>
               <div style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>공시 기준</div>
                 <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                  {selected.studentInfo?.year || '2024'}년
+                  {selected.studentInfo.year || '2024'}년
                 </div>
               </div>
             </div>
@@ -391,18 +390,6 @@ export default function SchoolPredictor() {
                 {chartData && <Line data={chartData} options={chartOptions} />}
               </div>
             </>
-          )}
-
-          {/* NEIS 학교 안내 */}
-          {!hasChart && !loading && (
-            <div style={{
-              background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.2)',
-              borderRadius: '10px', padding: '0.85rem 1rem',
-              fontSize: '0.82rem', color: '#a5b4fc', marginBottom: '1rem',
-            }}>
-              📡 NEIS에서 검색된 학교입니다. 신입생 추이 차트는 상세 데이터가 있는 샘플 학교에서만 표시됩니다.
-              AI는 학교명·지역·유형 정보를 기반으로 분석합니다.
-            </div>
           )}
 
           {/* AI 예측 결과 */}
