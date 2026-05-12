@@ -161,19 +161,27 @@ export default function SchoolPredictor() {
     }
   }
 
-  const hasChart = selected?._isLocal && selected?.enrollment?.length > 0
+  const isTrend = selected?._isLocal && selected?.enrollment?.length > 0
+  const isGradeDist = selected?.studentInfo?.grades?.length > 0
+  const hasChart = isTrend || isGradeDist
+
   const chartData = hasChart
     ? {
-        labels: selected.enrollment.map(e => `${e.year}`),
+        labels: isTrend 
+          ? selected.enrollment.map(e => `${e.year}`) 
+          : selected.studentInfo.grades.map(g => `${g.grade}학년`),
         datasets: [
           {
-            data: selected.enrollment.map(e => e.count),
+            label: '신입생 입학수',
+            data: isTrend 
+              ? selected.enrollment.map(e => e.count)
+              : selected.studentInfo.grades.map(g => g.count),
             borderColor: '#FF6B35',
             backgroundColor: 'rgba(255,107,53,0.08)',
             borderWidth: 2.5,
-            pointBackgroundColor: selected.enrollment.map((e, i, arr) =>
-              i === arr.length - 1 ? '#EF476F' : '#FF6B35'
-            ),
+            pointBackgroundColor: isTrend 
+              ? selected.enrollment.map((e, i, arr) => i === arr.length - 1 ? '#EF476F' : '#FF6B35')
+              : '#FF6B35',
             pointRadius: 5,
             tension: 0.35,
             fill: true,
@@ -186,9 +194,20 @@ export default function SchoolPredictor() {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
+      legend: {
+        display: true,
+        position: 'top',
+        align: 'end',
+        labels: {
+          color: '#8892AA',
+          font: { size: 11 },
+          boxWidth: 12,
+          padding: 10
+        }
+      },
       tooltip: {
         callbacks: {
-          label: (ctx) => ` 신입생 ${ctx.raw}명`,
+          label: (ctx) => ` 인원: ${ctx.raw}명`,
         },
       },
     },
@@ -380,11 +399,12 @@ export default function SchoolPredictor() {
             </div>
           )}
 
-          {/* 신입생 차트 (로컬 데이터 있을 때만) */}
+          {/* 차트 */}
           {hasChart && (
             <>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
-                📊 연도별 신입생 수 추이
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                {isTrend ? '📊 연도별 신입생 수 추이' : '📊 학년별 학생 수 분포'}
+                <span style={{ fontSize: '0.7rem', opacity: 0.6 }}>({isTrend ? '샘플 데이터' : `${selected.studentInfo.year}년 공시 정보`})</span>
               </div>
               <div className="chart-container">
                 {chartData && <Line data={chartData} options={chartOptions} />}
