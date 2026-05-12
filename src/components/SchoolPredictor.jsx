@@ -414,18 +414,38 @@ export default function SchoolPredictor() {
             </div>
           )}
 
-          {/* 차트 */}
-          {hasChart && (
-            <>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                {isTrend ? '📊 연도별 신입생 수 추이' : '📊 학년별 학생 수 분포'}
-                <span style={{ fontSize: '0.7rem', opacity: 0.6 }}>({isTrend ? '샘플 데이터' : `${selected.studentInfo.year}년 공시 정보`})</span>
-              </div>
+          {/* 차트 영역 */}
+          <div style={{ marginBottom: '1.5rem' }}>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              {hasChart ? (isTrend ? '📊 연도별 신입생 수 추이' : '📊 학년별 학생 수 분포') : '📊 통계 데이터 없음'}
+              {hasChart && <span style={{ fontSize: '0.7rem', opacity: 0.6 }}>({isTrend ? '샘플 데이터' : `${selected.studentInfo.year}년 공시 정보`})</span>}
+            </div>
+            
+            {hasChart ? (
               <div className="chart-container">
                 {chartData && <Line data={chartData} options={chartOptions} />}
               </div>
-            </>
-          )}
+            ) : (
+              <div style={{ 
+                height: '180px', 
+                background: 'rgba(255,255,255,0.02)', 
+                border: '1px dashed rgba(255,255,255,0.1)', 
+                borderRadius: '12px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--text-muted)',
+                fontSize: '0.85rem'
+              }}>
+                <span style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>📉</span>
+                해당 학교의 시각화 데이터를 찾을 수 없습니다.
+                <div style={{ fontSize: '0.75rem', marginTop: '0.3rem', opacity: 0.7 }}>
+                  AI 분석은 학교 기본 정보를 바탕으로 계속됩니다.
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* AI 예측 결과 */}
           <div className="ai-box">
