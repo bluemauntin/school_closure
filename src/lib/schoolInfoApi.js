@@ -67,7 +67,7 @@ async function fetchYearlyGradeStats(schoolCode, year) {
     apiType: '1',
     pCode: 'B000000021',
     schul_code: schoolCode,
-    year: String(year)
+    year: year ? String(year) : ''
   })
   
   if (!data || !data.list || data.list.length === 0) return null
@@ -80,28 +80,28 @@ async function fetchYearlyGradeStats(schoolCode, year) {
 export async function fetchStudentStatus(schoolCode) {
   if (!schoolCode) return null
 
-  // 최근 연도부터 순차적으로 시도 (2025~2021)
-  const targetYears = [2025, 2024, 2023, 2022, 2021]
+  // 최근 연도부터 순차적으로 시도 (2025~2022)
+  const targetYears = [2025, 2024, 2023, 2022]
   
   try {
-    // 병렬로 여러 연도 데이터 조회 시도
+    // 1. 연도별 데이터 병렬 조회 (최대 4개년)
     const results = await Promise.all(
       targetYears.map(y => fetchYearlyGradeStats(schoolCode, y))
     )
 
-    // 데이터가 존재하는 연도만 필터링
-    const statsByYear = results.filter(r => r !== null)
+    let statsByYear = results.filter(r => r !== null)
     
+    // 2. 연도 지정 데이터가 없으면 연도 미지정으로 최신 데이터 1회 더 시도
     if (statsByYear.length === 0) {
-      // 연도 지정 없이 다시 시도 (기본 공시 데이터)
       const defaultData = await fetchYearlyGradeStats(schoolCode, '')
-      if (!defaultData) return null
-      statsByYear.push(defaultData)
+      if (defaultData) statsByYear.push(defaultData)
     }
+
+    if (statsByYear.length === 0) return null
 
     const latest = statsByYear[0]
     
-    // 연도별 1학년(신입생) 수 추이 (Trend Graph용)
+    // 3. 연도별 1학년(신입생) 수 추이 가공
     const yearlyTrend = statsByYear
       .map(s => ({
         year: Number(s.AY),
@@ -110,21 +110,21 @@ export async function fetchStudentStatus(schoolCode) {
       .filter(t => t.count > 0)
       .sort((a, b) => a.year - b.year)
 
-    // 현재 시점 학년별 분포 (Distribution Graph용)
-    const grades = [
-      { grade: 1, count: Number(latest.COL_1 || 0) },
-      { grade: 2, count: Number(latest.COL_2 || 0) },
-      { grade: 3, count: Number(latest.COL_3 || 0) },
-      { grade: 4, count: Number(latest.COL_4 || 0) },
-      { grade: 5, count: Number(latest.COL_5 || 0) },
-      { grade: 6, count: Number(latest.COL_6 || 0) },
-    ].filter(g => g.count > 0)
+    // 4. 학년별 분포 가공 (초등학교 1-6, 중/고교 1-3 대응)
+    // COL_1~COL_6: 학년별 인원
+    const grades = []
+    for (let i = 1; i <= 6; i++) {
+      const count = Number(latest[`COL_${i}`] || 0)
+      if (count > 0) {
+        grades.push({ grade: i, count })
+      }
+    }
 
     return {
       year: latest.AY,
       grades: grades,
-      total: Number(latest.COL_13 || 0),
-      teachers: Number(latest.COL_14 || 0),
+      total: Number(latest.COL_13 || 0), // 전체 학생 수
+      teachers: Number(latest.COL_14 || 0), // 전체 교원 수
       yearlyTrend: yearlyTrend.length > 1 ? yearlyTrend : null
     }
   } catch (error) {
