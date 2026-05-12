@@ -7,7 +7,7 @@ import {
 import { SCHOOLS, calcRiskLevel, RISK_LABELS } from '../data/schools'
 import { predictSchoolClosure } from '../lib/groqApi'
 import { searchSchools, fetchEnrollment as fetchNeisEnrollment } from '../lib/neisApi'
-import { searchSchoolInfo, fetchStudentStatus } from '../lib/schoolInfoApi'
+import { searchSchoolInfo, fetchStudentStatus, findSchoolCodeByName } from '../lib/schoolInfoApi'
 
 ChartJS.register(CategoryScale, LinearScale, LineElement, PointElement, Filler, Tooltip)
 
