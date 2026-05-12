@@ -35,8 +35,6 @@ async function callApi(params) {
 
 /**
  * 학교명으로 전국 학교 검색
- * @param {string} schoolName 학교명
- * @returns {Promise<Array>} 학교 목록
  */
 export async function searchSchoolInfo(schoolName) {
   if (!schoolName || schoolName.trim().length < 2) return []
@@ -78,32 +76,38 @@ async function fetchYearlyGradeStats(schoolCode, year) {
 
 /**
  * 학교별 학년별 학생 수 및 연도별 추이 조회
- * @param {string} schoolCode 학교코드
- * @returns {Promise<Object|null>} 상세 데이터
  */
 export async function fetchStudentStatus(schoolCode) {
   if (!schoolCode) return null
 
-  // 최근 3개년 데이터 병렬 조회 (추이 그래프용)
-  const currentYear = 2024
-  const years = [currentYear, currentYear - 1, currentYear - 2]
+  // 최근 연도부터 순차적으로 시도 (2025~2021)
+  const targetYears = [2025, 2024, 2023, 2022, 2021]
   
   try {
+    // 병렬로 여러 연도 데이터 조회 시도
     const results = await Promise.all(
-      years.map(y => fetchYearlyGradeStats(schoolCode, y))
+      targetYears.map(y => fetchYearlyGradeStats(schoolCode, y))
     )
 
+    // 데이터가 존재하는 연도만 필터링
     const statsByYear = results.filter(r => r !== null)
-    if (statsByYear.length === 0) return null
+    
+    if (statsByYear.length === 0) {
+      // 연도 지정 없이 다시 시도 (기본 공시 데이터)
+      const defaultData = await fetchYearlyGradeStats(schoolCode, '')
+      if (!defaultData) return null
+      statsByYear.push(defaultData)
+    }
 
     const latest = statsByYear[0]
     
-    // 연도별 1학년(신입생) 수 추이 가공 (Trend Graph용)
+    // 연도별 1학년(신입생) 수 추이 (Trend Graph용)
     const yearlyTrend = statsByYear
       .map(s => ({
         year: Number(s.AY),
-        count: Number(s.COL_1 || 0) // 1학년 인원
+        count: Number(s.COL_1 || 0)
       }))
+      .filter(t => t.count > 0)
       .sort((a, b) => a.year - b.year)
 
     // 현재 시점 학년별 분포 (Distribution Graph용)
