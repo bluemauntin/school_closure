@@ -100,8 +100,8 @@ body { background: var(--bg-primary); color: var(--text-primary); min-height: 10
 }
 
 .hero-stats {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(185px, 1fr));
-  gap: 1rem; width: 100%; max-width: 920px; margin-bottom: 3.5rem;
+  display: grid; grid-template-columns: repeat(5, 1fr);
+  gap: 1rem; width: 100%; max-width: 1020px; margin-bottom: 3.5rem;
   animation: fadeInUp 0.7s 0.3s ease both;
 }
 .stat-card {
@@ -220,7 +220,7 @@ body { background: var(--bg-primary); color: var(--text-primary); min-height: 10
   background: var(--bg-card); border: 1px solid rgba(255,107,53,0.2);
   border-radius: var(--radius-md); z-index: 200;
   box-shadow: var(--shadow-card); overflow: hidden;
-  max-height: 320px; overflow-y: auto;
+  max-height: 480px; overflow-y: auto;
 }
 .dropdown-item {
   display: flex; align-items: center; justify-content: space-between;
@@ -382,6 +382,7 @@ body { background: var(--bg-primary); color: var(--text-primary); min-height: 10
   .nav-links a:not(:last-child) { display: none; }
   .hero { padding: 6rem 1.25rem 3.5rem; }
   .hero-stats { grid-template-columns: 1fr 1fr; }
+  .hero-stats .stat-card:last-child { grid-column: 1 / -1; max-width: 50%; justify-self: center; }
   .section-wrap { padding: 4rem 1.25rem; }
   .charts-grid { grid-template-columns: 1fr; }
   .form-row { grid-template-columns: 1fr; }

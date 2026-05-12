@@ -74,7 +74,7 @@ export async function predictSchoolClosure(school) {
     {
       role: 'system',
       content:
-        '당신은 한국 교육 통계를 분석하는 전문가입니다. 학교 신입생 수 추이 또는 지역 특성을 바탕으로 폐교 위험도를 평가합니다. 반드시 JSON만 응답하세요.',
+        '당신은 한국 교육 통계를 분석하는 전문가입니다. 학교 신입생 수 추이 또는 지역 특성을 바탕으로 폐교 위험도를 평가합니다. 반드시 JSON만 응답하세요. 절대로 한자(漢字), 중국어, 일본어 등 외래 문자를 사용하지 마세요. 모든 텍스트는 반드시 순수한 한글과 숫자, 기호만 사용하세요.',
     },
     {
       role: 'user',
@@ -104,7 +104,7 @@ export async function generateNewsSummaries() {
   const messages = [
     {
       role: 'system',
-      content: '당신은 한국 교육 뉴스를 요약하는 기자입니다. JSON 배열만 응답하세요.',
+      content: '당신은 한국 교육 뉴스를 요약하는 기자입니다. JSON 배열만 응답하세요. 절대로 한자(漢字), 중국어, 일본어 등 외래 문자를 사용하지 마세요. 모든 텍스트는 반드시 순수한 한글과 숫자, 기호만 사용하세요.',
     },
     {
       role: 'user',

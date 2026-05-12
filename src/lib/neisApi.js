@@ -1,25 +1,145 @@
 /**
  * NEIS Open API - 학교기본정보 조회
- * https://open.neis.go.kr/portal/data/service/selectServicePage.do?page=1&rows=10&sortColumn=&sortDirection=&infId=OPEN17020190531110010104913&infSeq=2
+ * https://open.neis.go.kr/portal/data/service/selectServicePage.do
  *
- * 인증키 없이도 기본 100건 조회 가능 (데모 키)
+ * VITE_NEIS_API_KEY 환경변수가 있으면 인증키 사용 (전국 모든 학교 검색 가능)
+ * 없으면 데모 키로 제한적 조회
  */
 
 const NEIS_BASE = 'https://open.neis.go.kr/hub/schoolInfo'
 
 /**
+ * 시도교육청 코드 목록 (전국 17개 시도)
+ */
+const EDU_OFFICE_CODES = [
+  'B10', // 서울
+  'C10', // 부산
+  'D10', // 대구
+  'E10', // 인천
+  'F10', // 광주
+  'G10', // 대전
+  'H10', // 울산
+  'I10', // 세종
+  'J10', // 경기
+  'K10', // 강원
+  'M10', // 충북
+  'N10', // 충남
+  'P10', // 전북
+  'Q10', // 전남
+  'R10', // 경북
+  'S10', // 경남
+  'T10', // 제주
+]
+
+/**
+ * NEIS API 키 가져오기
+ */
+function getApiKey() {
+  return import.meta.env.VITE_NEIS_API_KEY || ''
+}
+
+/**
+ * 단일 시도교육청에서 학교 검색
+ */
+async function searchInOffice(keyword, officeCode, apiKey, pSize = 100) {
+  try {
+    const params = new URLSearchParams({
+      Type: 'json',
+      pIndex: '1',
+      pSize: String(pSize),
+      SCHUL_NM: keyword.trim(),
+      ATPT_OFCDC_SC_CODE: officeCode,
+    })
+
+    if (apiKey) {
+      params.set('KEY', apiKey)
+    }
+
+    const res = await fetch(`${NEIS_BASE}?${params}`)
+    if (!res.ok) return []
+    const data = await res.json()
+
+    if (data.RESULT?.CODE === 'INFO-200') return []
+
+    const rows = data.schoolInfo?.[1]?.row || []
+    return rows.map(mapSchoolRow)
+  } catch {
+    return []
+  }
+}
+
+/**
+ * API 응답 row를 학교 객체로 변환
+ */
+function mapSchoolRow(s) {
+  return {
+    id: s.SD_SCHUL_CODE,
+    name: s.SCHUL_NM,
+    region: `${s.LCTN_SC_NM} ${s.JU_ORG_NM}`,
+    type: s.SCHUL_KND_SC_NM,
+    address: s.ORG_RDNMA,
+    phone: s.ORG_TELNO,
+    establish: s.FOND_SC_NM,
+    officeCode: s.ATPT_OFCDC_SC_CODE,
+    schoolCode: s.SD_SCHUL_CODE,
+  }
+}
+
+/**
  * 학교명으로 전국 학교 검색
+ * - API 키가 있으면: 전국 17개 시도교육청에 동시 요청 → 모든 학교 검색 가능
+ * - API 키가 없으면: 단일 요청으로 제한적 검색
+ *
  * @param {string} keyword - 검색어 (학교명)
  * @returns {Promise<Array>} 학교 목록
  */
 export async function searchSchools(keyword) {
   if (!keyword || keyword.trim().length < 1) return []
 
+  const apiKey = getApiKey()
+
+  // API 키가 있으면 전국 동시 검색 (17개 시도교육청 병렬 요청)
+  if (apiKey) {
+    try {
+      const promises = EDU_OFFICE_CODES.map((code) =>
+        searchInOffice(keyword, code, apiKey, 100)
+      )
+
+      const results = await Promise.allSettled(promises)
+
+      const allSchools = results
+        .filter((r) => r.status === 'fulfilled')
+        .flatMap((r) => r.value)
+
+      // 중복 제거 (학교코드 기준)
+      const seen = new Set()
+      const unique = allSchools.filter((s) => {
+        if (seen.has(s.id)) return false
+        seen.add(s.id)
+        return true
+      })
+
+      // 학교명 정확도 순 정렬 (정확히 일치 → 시작 일치 → 포함)
+      unique.sort((a, b) => {
+        const aExact = a.name === keyword ? 0 : a.name.startsWith(keyword) ? 1 : 2
+        const bExact = b.name === keyword ? 0 : b.name.startsWith(keyword) ? 1 : 2
+        if (aExact !== bExact) return aExact - bExact
+        return a.name.localeCompare(b.name, 'ko')
+      })
+
+      return unique.slice(0, 30) // 최대 30개 표시
+    } catch (err) {
+      console.error('NEIS 전국 검색 오류:', err)
+      return []
+    }
+  }
+
+  // API 키 없음: 기존 단일 요청 (제한적)
   try {
     const params = new URLSearchParams({
       Type: 'json',
       pIndex: '1',
-      pSize: '10',
+      pSize: '20',
       SCHUL_NM: keyword.trim(),
     })
 
@@ -27,21 +147,10 @@ export async function searchSchools(keyword) {
     if (!res.ok) throw new Error('API 오류')
     const data = await res.json()
 
-    // 결과 없음
     if (data.RESULT?.CODE === 'INFO-200') return []
 
     const rows = data.schoolInfo?.[1]?.row || []
-    return rows.map((s) => ({
-      id: s.SD_SCHUL_CODE,        // 행정표준코드
-      name: s.SCHUL_NM,           // 학교명
-      region: `${s.LCTN_SC_NM} ${s.JU_ORG_NM}`, // 시도 + 교육지원청
-      type: s.SCHUL_KND_SC_NM,    // 학교종류 (초/중/고)
-      address: s.ORG_RDNMA,       // 도로명주소
-      phone: s.ORG_TELNO,         // 전화번호
-      establish: s.FOND_SC_NM,    // 설립구분 (공립/사립)
-      officeCode: s.ATPT_OFCDC_SC_CODE, // 시도교육청 코드
-      schoolCode: s.SD_SCHUL_CODE,
-    }))
+    return rows.map(mapSchoolRow)
   } catch (err) {
     console.error('NEIS API 오류:', err)
     return []
@@ -54,6 +163,7 @@ export async function searchSchools(keyword) {
  */
 export async function fetchEnrollment(officeCode, schoolCode) {
   try {
+    const apiKey = getApiKey()
     const params = new URLSearchParams({
       Type: 'json',
       pIndex: '1',
@@ -61,6 +171,10 @@ export async function fetchEnrollment(officeCode, schoolCode) {
       ATPT_OFCDC_SC_CODE: officeCode,
       SD_SCHUL_CODE: schoolCode,
     })
+
+    if (apiKey) {
+      params.set('KEY', apiKey)
+    }
 
     const res = await fetch(`https://open.neis.go.kr/hub/classInfo?${params}`)
     if (!res.ok) throw new Error('API 오류')

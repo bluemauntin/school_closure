@@ -6,7 +6,8 @@ import {
 } from 'chart.js'
 import { SCHOOLS, calcRiskLevel, RISK_LABELS } from '../data/schools'
 import { predictSchoolClosure } from '../lib/groqApi'
-import { searchSchools } from '../lib/neisApi'
+import { searchSchools, fetchEnrollment as fetchNeisEnrollment } from '../lib/neisApi'
+import { searchSchoolInfo, fetchStudentStatus } from '../lib/schoolInfoApi'
 
 ChartJS.register(CategoryScale, LinearScale, LineElement, PointElement, Filler, Tooltip)
 
@@ -49,7 +50,7 @@ export default function SchoolPredictor() {
   const wrapRef = useRef(null)
   const debounceRef = useRef(null)
 
-  // 디바운스 검색: NEIS API + 로컬 샘플 병합
+  // 디바운스 검색: NEIS API + SchoolInfo API + 로컬 샘플 병합
   const doSearch = useCallback(async (q) => {
     if (!q.trim()) { setFiltered([]); setOpen(false); return }
 
@@ -65,15 +66,26 @@ export default function SchoolPredictor() {
       try {
         neisResults = await searchSchools(q)
       } catch {
-        // API 실패 시 로컬만 사용
+        // API 실패 무시
       }
 
-      // 중복 제거 후 병합 (로컬 우선, 최대 10개)
+      // SchoolInfo API 검색
+      let infoResults = []
+      try {
+        infoResults = await searchSchoolInfo(q)
+      } catch {
+        // API 실패 무시
+      }
+
+      // 중복 제거 후 병합 (로컬 > SchoolInfo > NEIS 우선, 최대 20개)
       const localNames = new Set(localResults.map(s => s.name))
+      const infoNames = new Set(infoResults.map(s => s.name))
+      
       const merged = [
         ...localResults,
-        ...neisResults.filter(s => !localNames.has(s.name)),
-      ].slice(0, 10)
+        ...infoResults.filter(s => !localNames.has(s.name)),
+        ...neisResults.filter(s => !localNames.has(s.name) && !infoNames.has(s.name)),
+      ].slice(0, 20)
 
       setFiltered(merged)
       setOpen(merged.length > 0)
@@ -116,16 +128,30 @@ export default function SchoolPredictor() {
       return
     }
 
-    // NEIS 학교: enrollment 데이터 없이 학교 기본 정보만으로 AI 분석
+    // NEIS/SchoolInfo 학교: 상세 정보 및 학생 수 데이터 가져오기
     setLoading(true)
     try {
+      // 학교알리미 상세 정보 조회
+      const studentInfo = await fetchStudentStatus(school.schoolCode)
+      
       const schoolForAI = {
         name: school.name,
         region: school.region || school.address,
         type: school.type,
-        enrollment: [], // NEIS 학생수 API는 별도 호출 필요 - 빈 배열 전달
-        _neisOnly: true,
+        enrollment: [], 
+        studentInfo: studentInfo, // 학교알리미 상세 정보 포함
+        _neisOnly: !studentInfo,
       }
+
+      // 학생 수가 있으면 enrollment 형식으로 변환 (AI 분석용)
+      if (studentInfo && studentInfo.grades) {
+        schoolForAI.enrollment = studentInfo.grades.map(g => ({
+          year: studentInfo.year,
+          count: g.count,
+          label: `${g.grade}학년`
+        }))
+      }
+
       const result = await predictSchoolClosure(schoolForAI)
       setPrediction(result)
     } catch (e) {
@@ -199,7 +225,7 @@ export default function SchoolPredictor() {
         marginBottom: '1rem',
       }}>
         <span>🌐</span>
-        <span>NEIS(교육정보시스템) 연동 — 전국 초·중·고등학교 실시간 검색</span>
+        <span>NEIS(교육정보시스템) 연동 — 전국 초·중·고등학교 실시간 검색{import.meta.env.VITE_NEIS_API_KEY ? ' ✅ API 키 연동 완료' : ' (API 키를 등록하면 모든 학교 검색 가능)'}</span>
       </div>
 
       <div className="search-wrap" ref={wrapRef}>
@@ -235,7 +261,18 @@ export default function SchoolPredictor() {
                   <div>
                     <div className="dropdown-school">
                       {TYPE_EMOJI[s.type] || '🏫'} {s.name}
-                      {!s._isLocal && <span style={{ marginLeft: '0.4rem', fontSize: '0.7rem', background: 'rgba(99,102,241,0.2)', color: '#a5b4fc', borderRadius: '4px', padding: '0 5px' }}>NEIS</span>}
+                      {!s._isLocal && (
+                        <span style={{ 
+                          marginLeft: '0.4rem', 
+                          fontSize: '0.65rem', 
+                          background: s._isSchoolInfo ? 'rgba(6,214,160,0.2)' : 'rgba(99,102,241,0.2)', 
+                          color: s._isSchoolInfo ? '#06D6A0' : '#a5b4fc', 
+                          borderRadius: '4px', 
+                          padding: '1px 5px' 
+                        }}>
+                          {s._isSchoolInfo ? '학교알리미' : 'NEIS'}
+                        </span>
+                      )}
                     </div>
                     <div className="dropdown-region">
                       {s.region || s.address} · {s.type}
@@ -311,6 +348,38 @@ export default function SchoolPredictor() {
               )}
             </div>
           </div>
+
+          {/* 학교알리미 상세 정보 요약 */}
+          {!loading && prediction && !selected._isLocal && (
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', 
+              gap: '0.75rem', 
+              marginBottom: '1.5rem',
+              background: 'rgba(255,255,255,0.03)',
+              borderRadius: '12px',
+              padding: '1rem'
+            }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>전체 학생 수</div>
+                <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--accent-orange)' }}>
+                  {selected.studentInfo?.total || '확인중'}명
+                </div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>교원 수</div>
+                <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--accent-blue)' }}>
+                  {selected.studentInfo?.teachers || '확인중'}명
+                </div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>공시 기준</div>
+                <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  {selected.studentInfo?.year || '2024'}년
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* 신입생 차트 (로컬 데이터 있을 때만) */}
           {hasChart && (
