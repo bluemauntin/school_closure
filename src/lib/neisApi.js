@@ -183,18 +183,41 @@ export async function fetchEnrollment(officeCode, schoolCode) {
     if (data.RESULT?.CODE === 'INFO-200') return null
 
     const rows = data.classInfo?.[1]?.row || []
-    // 학년별 집계
+    // 학년별/연도별 집계
     const byYear = {}
     rows.forEach((r) => {
       const year = r.AY // 학년도
+      const count = Number(r.CNT || 0) // 학생 수
       if (!byYear[year]) byYear[year] = 0
-      byYear[year]++
+      byYear[year] += count
     })
 
-    return Object.entries(byYear)
+    const trend = Object.entries(byYear)
       .sort((a, b) => a[0] - b[0])
       .map(([year, count]) => ({ year: Number(year), count }))
-  } catch {
+
+    // 가장 최신 연도 데이터에서 학년별 상세 데이터도 추출 가능하도록 구성
+    const latestYear = Math.max(...Object.keys(byYear).map(Number))
+    const latestRows = rows.filter(r => Number(r.AY) === latestYear)
+    const gradeMap = {}
+    latestRows.forEach(r => {
+      const g = Number(r.GRADE)
+      const c = Number(r.CNT || 0)
+      gradeMap[g] = (gradeMap[g] || 0) + c
+    })
+    const grades = Object.entries(gradeMap)
+      .map(([g, c]) => ({ grade: Number(g), count: c }))
+      .sort((a, b) => a.grade - b.grade)
+
+    return {
+      yearlyTrend: trend,
+      grades: grades,
+      year: String(latestYear),
+      total: byYear[latestYear] || 0,
+      _isNeisData: true
+    }
+  } catch (error) {
+    console.error('NEIS fetchEnrollment Error:', error)
     return null
   }
 }

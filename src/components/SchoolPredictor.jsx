@@ -141,22 +141,28 @@ export default function SchoolPredictor() {
           studentInfo = await fetchStudentStatus(fallbackCode)
         }
       }
+
+      // 3. 여전히 데이터가 없다면 NEIS API에서 직접 학생 수 조회 시도
+      if (!studentInfo && !school._isLocal && school.officeCode) {
+        studentInfo = await fetchNeisEnrollment(school.officeCode, school.schoolCode)
+      }
       
       const schoolForAI = {
         name: school.name,
         region: school.region || school.address,
         type: school.type,
         enrollment: [], 
-        studentInfo: studentInfo, // 학교알리미 상세 정보 포함
+        studentInfo: studentInfo, // 학교알리미 또는 NEIS 상세 정보 포함
         _neisOnly: !studentInfo,
       }
 
       // 학생 수가 있으면 enrollment 형식으로 변환 (AI 분석용)
-      if (studentInfo && studentInfo.grades) {
-        schoolForAI.enrollment = studentInfo.grades.map(g => ({
+      if (studentInfo && (studentInfo.grades || studentInfo.yearlyTrend)) {
+        const sourceData = studentInfo.yearlyTrend || studentInfo.grades
+        schoolForAI.enrollment = sourceData.map(item => ({
           year: studentInfo.year,
-          count: g.count,
-          label: `${g.grade}학년`
+          count: item.count,
+          label: item.grade ? `${item.grade}학년` : `${item.year}년`
         }))
       }
 
