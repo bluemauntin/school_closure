@@ -161,26 +161,33 @@ export default function SchoolPredictor() {
     }
   }
 
-  const isTrend = selected?._isLocal && selected?.enrollment?.length > 0
+  const isLocalTrend = selected?._isLocal && selected?.enrollment?.length > 0
+  const isApiTrend = selected?.studentInfo?.yearlyTrend?.length > 0
   const isGradeDist = selected?.studentInfo?.grades?.length > 0
-  const hasChart = isTrend || isGradeDist
+  
+  const hasChart = isLocalTrend || isApiTrend || isGradeDist
+  const isTrend = isLocalTrend || isApiTrend
 
   const chartData = hasChart
     ? {
-        labels: isTrend 
-          ? selected.enrollment.map(e => `${e.year}`) 
-          : selected.studentInfo.grades.map(g => `${g.grade}학년`),
+        labels: isLocalTrend 
+          ? selected.enrollment.map(e => `${e.year}`)
+          : isApiTrend 
+            ? selected.studentInfo.yearlyTrend.map(t => `${t.year}`)
+            : selected.studentInfo.grades.map(g => `${g.grade}학년`),
         datasets: [
           {
             label: '신입생 입학수',
-            data: isTrend 
+            data: isLocalTrend 
               ? selected.enrollment.map(e => e.count)
-              : selected.studentInfo.grades.map(g => g.count),
+              : isApiTrend 
+                ? selected.studentInfo.yearlyTrend.map(t => t.count)
+                : selected.studentInfo.grades.map(g => g.count),
             borderColor: '#FF6B35',
             backgroundColor: 'rgba(255,107,53,0.08)',
             borderWidth: 2.5,
             pointBackgroundColor: isTrend 
-              ? selected.enrollment.map((e, i, arr) => i === arr.length - 1 ? '#EF476F' : '#FF6B35')
+              ? (isLocalTrend ? selected.enrollment : selected.studentInfo.yearlyTrend).map((e, i, arr) => i === arr.length - 1 ? '#EF476F' : '#FF6B35')
               : '#FF6B35',
             pointRadius: 5,
             tension: 0.35,
