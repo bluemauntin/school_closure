@@ -158,7 +158,7 @@ export async function fetchStudentStatus(schoolCode) {
       .filter(t => t.count > 0 && t.year > 0)
       .sort((a, b) => a.year - b.year)
 
-    // 학년별 분포 가공
+    // 학년별 분포 가공 (초·중은 3개, 고는 3개, 초등은 최대 6개 학년)
     const grades = []
     for (let i = 1; i <= 6; i++) {
       const count = extractGradeCount(latest, i)
@@ -167,11 +167,16 @@ export async function fetchStudentStatus(schoolCode) {
       }
     }
 
+    // 전체 학생 수: 응답 필드를 우선 사용하되, 없거나 0이면 학년별 합계로 대체
+    const gradeSum = grades.reduce((acc, g) => acc + g.count, 0)
+    const totalField = Number(latest.TOTAL_SUM || latest.ALL_SUM || latest.COL_13 || 0)
+    const total = totalField > 0 ? totalField : gradeSum
+
     return {
       year: latest.AY || latest.YEAR || '2024',
       grades: grades,
-      total: Number(latest.TOTAL_SUM || latest.ALL_SUM || latest.COL_13 || 0),
-      teachers: Number(latest.COL_14 || 0),
+      total: total,
+      teachers: Number(latest.COL_14 || latest.TEACHER_SUM || 0) || null,
       yearlyTrend: yearlyTrend.length > 1 ? yearlyTrend : null
     }
   } catch (error) {

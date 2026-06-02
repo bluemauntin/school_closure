@@ -147,22 +147,24 @@ export default function SchoolPredictor() {
         studentInfo = await fetchNeisEnrollment(school.officeCode, school.schoolCode)
       }
       
+      // 가져온 학생 수 데이터를 화면 상태(selected)에 반영해야 차트/통계가 렌더링됨
+      setSelected(prev => ({ ...(prev || school), studentInfo }))
+
       const schoolForAI = {
         name: school.name,
         region: school.region || school.address,
         type: school.type,
-        enrollment: [], 
+        enrollment: [],
         studentInfo: studentInfo, // 학교알리미 또는 NEIS 상세 정보 포함
         _neisOnly: !studentInfo,
       }
 
-      // 학생 수가 있으면 enrollment 형식으로 변환 (AI 분석용)
-      if (studentInfo && (studentInfo.grades || studentInfo.yearlyTrend)) {
-        const sourceData = studentInfo.yearlyTrend || studentInfo.grades
-        schoolForAI.enrollment = sourceData.map(item => ({
-          year: studentInfo.year,
-          count: item.count,
-          label: item.grade ? `${item.grade}학년` : `${item.year}년`
+      // 연도별 신입생(1학년) 추이가 있으면 AI 분석용 enrollment로 변환
+      // (grades는 특정 연도의 학년별 분포이므로 연도별 추이로 쓰면 안 됨)
+      if (studentInfo?.yearlyTrend?.length > 0) {
+        schoolForAI.enrollment = studentInfo.yearlyTrend.map(t => ({
+          year: t.year,
+          count: t.count,
         }))
       }
 
@@ -191,7 +193,7 @@ export default function SchoolPredictor() {
             : selected.studentInfo.grades.map(g => `${g.grade}학년`),
         datasets: [
           {
-            label: '신입생 입학수',
+            label: isTrend ? '신입생(1학년) 수' : '학년별 학생 수',
             data: isLocalTrend 
               ? selected.enrollment.map(e => e.count)
               : isApiTrend 
@@ -402,13 +404,13 @@ export default function SchoolPredictor() {
               <div style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>전체 학생 수</div>
                 <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--accent-orange)' }}>
-                  {selected.studentInfo.total?.toLocaleString() || '-'}명
+                  {selected.studentInfo.total > 0 ? `${selected.studentInfo.total.toLocaleString()}명` : '-'}
                 </div>
               </div>
               <div style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>교원 수</div>
                 <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--accent-blue)' }}>
-                  {selected.studentInfo.teachers?.toLocaleString() || '-'}명
+                  {selected.studentInfo.teachers > 0 ? `${selected.studentInfo.teachers.toLocaleString()}명` : '-'}
                 </div>
               </div>
               <div style={{ textAlign: 'center' }}>
