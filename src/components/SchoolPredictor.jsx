@@ -8,6 +8,7 @@ import { SCHOOLS, calcRiskLevel, RISK_LABELS } from '../data/schools'
 import { predictSchoolClosure } from '../lib/groqApi'
 import { searchSchools, fetchClassCounts } from '../lib/neisApi'
 import { fetchStudentStatus } from '../lib/schoolInfoApi'
+import { buildTenYearTrend } from '../lib/trend'
 
 ChartJS.register(CategoryScale, LinearScale, LineElement, PointElement, Filler, Tooltip)
 
@@ -160,43 +161,41 @@ export default function SchoolPredictor() {
     }
   }
 
-  // studentInfo.grades 의 count 가 학생 수가 아니라 "학급 수"인 경우(NEIS classInfo) 구분
-  const isClassCount = !!selected?.studentInfo?._isClassCount
-  const isLocalTrend = selected?._isLocal && selected?.enrollment?.length > 0
-  const isApiTrend = selected?.studentInfo?.yearlyTrend?.length > 0
-  const isGradeDist = selected?.studentInfo?.grades?.length > 0
+  // 모든 그래프는 "최근 10년 신입생(1학년) 수 추이"로 통일한다.
+  //  - 로컬 샘플: enrollment(연도별 신입생) → 10년 추이
+  //  - 학교알리미: studentInfo.yearlyTrend (이미 10개년, actual/cohort/estimate 혼합)
+  const trend = selected?._isLocal
+    ? buildTenYearTrend((selected.enrollment || []).map(e => ({ year: e.year, count: e.count, kind: 'actual' })))
+    : (selected?.studentInfo?.yearlyTrend || [])
 
-  const hasChart = isLocalTrend || isApiTrend || isGradeDist
-  const isTrend = isLocalTrend || isApiTrend
-  const unit = isClassCount ? '개' : '명'
-  const seriesLabel = isClassCount
-    ? '학년별 학급 수'
-    : isTrend ? '신입생(1학년) 수' : '학년별 학생 수'
+  const hasChart = trend.length > 0
+  const kinds = trend.map(t => t.kind || 'actual')
+  const KIND_COLOR = { actual: '#EF476F', cohort: '#FF6B35', estimate: '#6B7280' }
+  const KIND_TEXT = { actual: '실측', cohort: '추정(코호트)', estimate: '추정(추세)' }
 
   const chartData = hasChart
     ? {
-        labels: isLocalTrend
-          ? selected.enrollment.map(e => `${e.year}`)
-          : isApiTrend
-            ? selected.studentInfo.yearlyTrend.map(t => `${t.year}`)
-            : selected.studentInfo.grades.map(g => `${g.grade}학년`),
+        labels: trend.map(t => `${t.year}`),
         datasets: [
           {
-            label: seriesLabel,
-            data: isLocalTrend
-              ? selected.enrollment.map(e => e.count)
-              : isApiTrend
-                ? selected.studentInfo.yearlyTrend.map(t => t.count)
-                : selected.studentInfo.grades.map(g => g.count),
+            label: '신입생(1학년) 수',
+            data: trend.map(t => t.count),
             borderColor: '#FF6B35',
             backgroundColor: 'rgba(255,107,53,0.08)',
             borderWidth: 2.5,
-            pointBackgroundColor: isTrend 
-              ? (isLocalTrend ? selected.enrollment : selected.studentInfo.yearlyTrend).map((e, i, arr) => i === arr.length - 1 ? '#EF476F' : '#FF6B35')
-              : '#FF6B35',
-            pointRadius: 5,
+            pointBackgroundColor: kinds.map(k => KIND_COLOR[k]),
+            pointBorderColor: kinds.map(k => KIND_COLOR[k]),
+            pointRadius: kinds.map(k => (k === 'actual' ? 5 : 4)),
+            pointStyle: kinds.map(k => (k === 'estimate' ? 'rectRot' : 'circle')),
             tension: 0.35,
             fill: true,
+            // 추정 구간(코호트·추세)은 점선으로 구분
+            segment: {
+              borderDash: (ctx) =>
+                kinds[ctx.p0DataIndex] !== 'actual' || kinds[ctx.p1DataIndex] !== 'actual'
+                  ? [5, 4]
+                  : undefined,
+            },
           },
         ],
       }
@@ -206,20 +205,10 @@ export default function SchoolPredictor() {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: {
-        display: true,
-        position: 'top',
-        align: 'end',
-        labels: {
-          color: '#8892AA',
-          font: { size: 11 },
-          boxWidth: 12,
-          padding: 10
-        }
-      },
+      legend: { display: false },
       tooltip: {
         callbacks: {
-          label: (ctx) => ` ${isClassCount ? '학급' : '인원'}: ${ctx.raw}${unit}`,
+          label: (ctx) => ` 신입생 ${ctx.raw}명 · ${KIND_TEXT[kinds[ctx.dataIndex]] || '실측'}`,
         },
       },
     },
@@ -227,7 +216,7 @@ export default function SchoolPredictor() {
       x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8892AA', font: { size: 11 } } },
       y: {
         grid: { color: 'rgba(255,255,255,0.04)' },
-        ticks: { color: '#8892AA', font: { size: 11 }, callback: (v) => `${v}${unit}` },
+        ticks: { color: '#8892AA', font: { size: 11 }, callback: (v) => `${v}명` },
         beginAtZero: true,
       },
     },
@@ -380,7 +369,7 @@ export default function SchoolPredictor() {
           </div>
 
           {/* 학교알리미 상세 정보 요약 (실제 학생 수 데이터일 때만) */}
-          {!loading && prediction && !selected._isLocal && selected.studentInfo && !isClassCount && (
+          {!loading && prediction && !selected._isLocal && selected.studentInfo && !selected.studentInfo._isClassCount && (
             <div style={{
               display: 'grid', 
               gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', 
@@ -411,15 +400,19 @@ export default function SchoolPredictor() {
             </div>
           )}
 
-          {/* 차트 영역 */}
+          {/* 차트 영역 — 항상 최근 10년 신입생(1학년) 수 추이 */}
           <div style={{ marginBottom: '1.5rem' }}>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              {hasChart
-                ? (isClassCount ? '📊 학년별 학급 수' : isTrend ? '📊 연도별 신입생 수 추이' : '📊 학년별 학생 수 분포')
-                : '📊 통계 데이터 없음'}
-              {hasChart && <span style={{ fontSize: '0.7rem', opacity: 0.6 }}>({isLocalTrend ? '샘플 데이터' : isClassCount ? `${selected.studentInfo.year}년 NEIS 학급정보` : `${selected.studentInfo.year}년 공시 정보`})</span>}
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+              <span>📊 최근 10년 신입생(1학년) 수 추이</span>
+              {hasChart && (
+                <span style={{ fontSize: '0.7rem', opacity: 0.75, display: 'inline-flex', gap: '0.6rem' }}>
+                  <span style={{ color: '#EF476F' }}>● 실측</span>
+                  <span style={{ color: '#FF6B35' }}>● 추정(코호트)</span>
+                  <span style={{ color: '#9aa3b2' }}>◆ 추정(추세)</span>
+                </span>
+              )}
             </div>
-            
+
             {hasChart ? (
               <div className="chart-container">
                 {chartData && <Line data={chartData} options={chartOptions} />}

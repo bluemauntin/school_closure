@@ -19,6 +19,7 @@
  */
 
 import { SIGUNGU } from '../data/sigunguCodes'
+import { buildTenYearTrend } from './trend'
 
 const API_BASE = '/sapi/openApi.do'
 
@@ -153,18 +154,35 @@ export async function fetchStudentStatus(school, years = [2025, 2024, 2023]) {
   const total = Number(rec.COL_S_SUM || 0) || gradeSum
   const teachers = Number(rec.TEACH_CNT || 0) || null
 
-  // 신입생(1학년) 연도별 추이
-  const yearlyTrend = found
-    .map(f => ({ year: f.year, count: Number(f.rec.COL_S1 || 0) }))
-    .filter(t => t.count > 0)
-    .sort((a, b) => a.year - b.year)
+  // 신입생(1학년) 추이용 점 구성:
+  //  - 각 공시연도 Y 의 g학년 학생수(COL_S{g}) ≈ (Y-(g-1))년 신입생 (코호트 역산)
+  //  - g=1 은 그 해 실측 신입생(actual), g>=2 는 추정(cohort)
+  //  - 같은 연도가 겹치면 actual 우선, 그다음 g 가 작은(=가까운 시점에 관측된) 값 우선
+  const bestByYear = new Map()
+  for (const f of found) {
+    for (let g = 1; g <= 6; g++) {
+      const c = Number(f.rec[`COL_S${g}`] || 0)
+      if (c <= 0) continue
+      const entryYear = f.year - (g - 1)
+      const kind = g === 1 ? 'actual' : 'cohort'
+      const cur = bestByYear.get(entryYear)
+      const better =
+        !cur ||
+        (kind === 'actual' && cur.kind !== 'actual') ||
+        (kind === cur.kind && g < cur.g)
+      if (better) bestByYear.set(entryYear, { year: entryYear, count: c, kind, g })
+    }
+  }
+
+  const latestYear = Math.max(...found.map(f => f.year))
+  const yearlyTrend = buildTenYearTrend([...bestByYear.values()], latestYear)
 
   return {
     year: String(latest.year),
     grades,
     total,
     teachers,
-    yearlyTrend: yearlyTrend.length > 1 ? yearlyTrend : null,
+    yearlyTrend, // 항상 10개년 (actual/cohort/estimate 혼합)
     schoolCode: rec.SCHUL_CODE,
   }
 }
