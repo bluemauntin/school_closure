@@ -6,7 +6,7 @@ import {
 } from 'chart.js'
 import { SCHOOLS, calcRiskLevel, RISK_LABELS } from '../data/schools'
 import { predictSchoolClosure } from '../lib/groqApi'
-import { searchSchools, fetchEnrollment as fetchNeisEnrollment } from '../lib/neisApi'
+import { searchSchools, fetchClassCounts } from '../lib/neisApi'
 import { searchSchoolInfo, fetchStudentStatus, findSchoolCodeByName } from '../lib/schoolInfoApi'
 
 ChartJS.register(CategoryScale, LinearScale, LineElement, PointElement, Filler, Tooltip)
@@ -142,9 +142,10 @@ export default function SchoolPredictor() {
         }
       }
 
-      // 3. 여전히 데이터가 없다면 NEIS API에서 직접 학생 수 조회 시도
+      // 3. 학생 수 공시 데이터가 없으면 NEIS에서 "학년별 학급 수"라도 가져옴
+      //    (NEIS는 학생 인원을 제공하지 않으므로 학급 수만 가능 — 차트에 그렇게 표기됨)
       if (!studentInfo && !school._isLocal && school.officeCode) {
-        studentInfo = await fetchNeisEnrollment(school.officeCode, school.schoolCode)
+        studentInfo = await fetchClassCounts(school.officeCode, school.schoolCode)
       }
       
       // 가져온 학생 수 데이터를 화면 상태(selected)에 반영해야 차트/통계가 렌더링됨
@@ -177,26 +178,32 @@ export default function SchoolPredictor() {
     }
   }
 
+  // studentInfo.grades 의 count 가 학생 수가 아니라 "학급 수"인 경우(NEIS classInfo) 구분
+  const isClassCount = !!selected?.studentInfo?._isClassCount
   const isLocalTrend = selected?._isLocal && selected?.enrollment?.length > 0
   const isApiTrend = selected?.studentInfo?.yearlyTrend?.length > 0
   const isGradeDist = selected?.studentInfo?.grades?.length > 0
-  
+
   const hasChart = isLocalTrend || isApiTrend || isGradeDist
   const isTrend = isLocalTrend || isApiTrend
+  const unit = isClassCount ? '개' : '명'
+  const seriesLabel = isClassCount
+    ? '학년별 학급 수'
+    : isTrend ? '신입생(1학년) 수' : '학년별 학생 수'
 
   const chartData = hasChart
     ? {
-        labels: isLocalTrend 
+        labels: isLocalTrend
           ? selected.enrollment.map(e => `${e.year}`)
-          : isApiTrend 
+          : isApiTrend
             ? selected.studentInfo.yearlyTrend.map(t => `${t.year}`)
             : selected.studentInfo.grades.map(g => `${g.grade}학년`),
         datasets: [
           {
-            label: isTrend ? '신입생(1학년) 수' : '학년별 학생 수',
-            data: isLocalTrend 
+            label: seriesLabel,
+            data: isLocalTrend
               ? selected.enrollment.map(e => e.count)
-              : isApiTrend 
+              : isApiTrend
                 ? selected.studentInfo.yearlyTrend.map(t => t.count)
                 : selected.studentInfo.grades.map(g => g.count),
             borderColor: '#FF6B35',
@@ -230,7 +237,7 @@ export default function SchoolPredictor() {
       },
       tooltip: {
         callbacks: {
-          label: (ctx) => ` 인원: ${ctx.raw}명`,
+          label: (ctx) => ` ${isClassCount ? '학급' : '인원'}: ${ctx.raw}${unit}`,
         },
       },
     },
@@ -238,7 +245,7 @@ export default function SchoolPredictor() {
       x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8892AA', font: { size: 11 } } },
       y: {
         grid: { color: 'rgba(255,255,255,0.04)' },
-        ticks: { color: '#8892AA', font: { size: 11 }, callback: (v) => `${v}명` },
+        ticks: { color: '#8892AA', font: { size: 11 }, callback: (v) => `${v}${unit}` },
         beginAtZero: true,
       },
     },
@@ -390,9 +397,9 @@ export default function SchoolPredictor() {
             </div>
           </div>
 
-          {/* 학교알리미 상세 정보 요약 */}
-          {!loading && prediction && !selected._isLocal && selected.studentInfo && (
-            <div style={{ 
+          {/* 학교알리미 상세 정보 요약 (실제 학생 수 데이터일 때만) */}
+          {!loading && prediction && !selected._isLocal && selected.studentInfo && !isClassCount && (
+            <div style={{
               display: 'grid', 
               gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', 
               gap: '0.75rem', 
@@ -425,8 +432,10 @@ export default function SchoolPredictor() {
           {/* 차트 영역 */}
           <div style={{ marginBottom: '1.5rem' }}>
             <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              {hasChart ? (isTrend ? '📊 연도별 신입생 수 추이' : '📊 학년별 학생 수 분포') : '📊 통계 데이터 없음'}
-              {hasChart && <span style={{ fontSize: '0.7rem', opacity: 0.6 }}>({isTrend ? '샘플 데이터' : `${selected.studentInfo.year}년 공시 정보`})</span>}
+              {hasChart
+                ? (isClassCount ? '📊 학년별 학급 수' : isTrend ? '📊 연도별 신입생 수 추이' : '📊 학년별 학생 수 분포')
+                : '📊 통계 데이터 없음'}
+              {hasChart && <span style={{ fontSize: '0.7rem', opacity: 0.6 }}>({isLocalTrend ? '샘플 데이터' : isClassCount ? `${selected.studentInfo.year}년 NEIS 학급정보` : `${selected.studentInfo.year}년 공시 정보`})</span>}
             </div>
             
             {hasChart ? (

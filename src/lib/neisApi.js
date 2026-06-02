@@ -158,16 +158,24 @@ export async function searchSchools(keyword) {
 }
 
 /**
- * 학교 신입생 수 조회 (학년별 학생수)
- * NEIS API: 학교별 학년별 학생수
+ * 학교 학년별 "학급 수" 조회
+ *
+ * 주의: NEIS classInfo(학급정보)에는 학생 수(인원) 필드가 없다.
+ * 응답의 한 행(row)은 "한 학급"을 의미하며 GRADE/CLASS_NM만 제공한다.
+ * 따라서 학생 수는 구할 수 없고, 학년별 학급 "개수"만 집계할 수 있다.
+ * (과거 구현은 존재하지 않는 r.CNT 를 읽어 모든 값을 0으로 만들었고,
+ *  이것이 "신입생 0명" 그래프의 원인이었다.)
+ *
+ * 반환값의 grades[].count 는 학생 수가 아니라 "학급 수"이며,
+ * _isClassCount 플래그로 학생 수 데이터와 구분한다.
  */
-export async function fetchEnrollment(officeCode, schoolCode) {
+export async function fetchClassCounts(officeCode, schoolCode) {
   try {
     const apiKey = getApiKey()
     const params = new URLSearchParams({
       Type: 'json',
       pIndex: '1',
-      pSize: '100',
+      pSize: '200',
       ATPT_OFCDC_SC_CODE: officeCode,
       SD_SCHUL_CODE: schoolCode,
     })
@@ -183,41 +191,34 @@ export async function fetchEnrollment(officeCode, schoolCode) {
     if (data.RESULT?.CODE === 'INFO-200') return null
 
     const rows = data.classInfo?.[1]?.row || []
-    // 학년별/연도별 집계
-    const byYear = {}
-    rows.forEach((r) => {
-      const year = r.AY // 학년도
-      const count = Number(r.CNT || 0) // 학생 수
-      if (!byYear[year]) byYear[year] = 0
-      byYear[year] += count
-    })
+    if (rows.length === 0) return null
 
-    const trend = Object.entries(byYear)
-      .sort((a, b) => a[0] - b[0])
-      .map(([year, count]) => ({ year: Number(year), count }))
-
-    // 가장 최신 연도 데이터에서 학년별 상세 데이터도 추출 가능하도록 구성
-    const latestYear = Math.max(...Object.keys(byYear).map(Number))
+    // 가장 최신 학년도만 사용
+    const latestYear = Math.max(...rows.map(r => Number(r.AY) || 0))
     const latestRows = rows.filter(r => Number(r.AY) === latestYear)
-    const gradeMap = {}
+
+    // 학년별 학급 개수 = 해당 GRADE 의 row 개수
+    const classByGrade = {}
     latestRows.forEach(r => {
       const g = Number(r.GRADE)
-      const c = Number(r.CNT || 0)
-      gradeMap[g] = (gradeMap[g] || 0) + c
+      if (!g) return
+      classByGrade[g] = (classByGrade[g] || 0) + 1
     })
-    const grades = Object.entries(gradeMap)
+
+    const grades = Object.entries(classByGrade)
       .map(([g, c]) => ({ grade: Number(g), count: c }))
       .sort((a, b) => a.grade - b.grade)
 
+    if (grades.length === 0) return null
+
     return {
-      yearlyTrend: trend,
-      grades: grades,
+      grades,
       year: String(latestYear),
-      total: byYear[latestYear] || 0,
-      _isNeisData: true
+      total: grades.reduce((acc, g) => acc + g.count, 0),
+      _isClassCount: true, // count 는 "학급 수"(학생 수 아님)
     }
   } catch (error) {
-    console.error('NEIS fetchEnrollment Error:', error)
+    console.error('NEIS fetchClassCounts Error:', error)
     return null
   }
 }
