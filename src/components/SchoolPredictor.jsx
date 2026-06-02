@@ -7,7 +7,7 @@ import {
 import { SCHOOLS, calcRiskLevel, RISK_LABELS } from '../data/schools'
 import { predictSchoolClosure } from '../lib/groqApi'
 import { searchSchools, fetchClassCounts } from '../lib/neisApi'
-import { searchSchoolInfo, fetchStudentStatus, findSchoolCodeByName } from '../lib/schoolInfoApi'
+import { fetchStudentStatus } from '../lib/schoolInfoApi'
 
 ChartJS.register(CategoryScale, LinearScale, LineElement, PointElement, Filler, Tooltip)
 
@@ -50,7 +50,8 @@ export default function SchoolPredictor() {
   const wrapRef = useRef(null)
   const debounceRef = useRef(null)
 
-  // 디바운스 검색: NEIS API + SchoolInfo API + 로컬 샘플 병합
+  // 디바운스 검색: NEIS API(이름 검색) + 로컬 샘플 병합
+  // (학교알리미 API는 지역코드 기반이라 이름 검색에 부적합 → 학생 수 조회 단계에서만 사용)
   const doSearch = useCallback(async (q) => {
     if (!q.trim()) { setFiltered([]); setOpen(false); return }
 
@@ -69,22 +70,11 @@ export default function SchoolPredictor() {
         // API 실패 무시
       }
 
-      // SchoolInfo API 검색
-      let infoResults = []
-      try {
-        infoResults = await searchSchoolInfo(q)
-      } catch {
-        // API 실패 무시
-      }
-
-      // 중복 제거 후 병합 (로컬 > SchoolInfo > NEIS 우선, 최대 20개)
+      // 중복 제거 후 병합 (로컬 우선, 최대 20개)
       const localNames = new Set(localResults.map(s => s.name))
-      const infoNames = new Set(infoResults.map(s => s.name))
-      
       const merged = [
         ...localResults,
-        ...infoResults.filter(s => !localNames.has(s.name)),
-        ...neisResults.filter(s => !localNames.has(s.name) && !infoNames.has(s.name)),
+        ...neisResults.filter(s => !localNames.has(s.name)),
       ].slice(0, 20)
 
       setFiltered(merged)
@@ -128,23 +118,15 @@ export default function SchoolPredictor() {
       return
     }
 
-    // NEIS/SchoolInfo 학교: 상세 정보 및 학생 수 데이터 가져오기
+    // NEIS/SchoolInfo 학교: 학생 수 데이터 가져오기
     setLoading(true)
     try {
-      // 1. 기존 코드로 학교알리미 상세 정보 조회
-      let studentInfo = await fetchStudentStatus(school.schoolCode)
-      
-      // 2. 만약 조회가 안 된다면(NEIS 전용 등), 이름으로 다시 찾아서 재시도
-      if (!studentInfo && !school._isLocal) {
-        const fallbackCode = await findSchoolCodeByName(school.name, school.region || school.address)
-        if (fallbackCode && fallbackCode !== school.schoolCode) {
-          studentInfo = await fetchStudentStatus(fallbackCode)
-        }
-      }
+      // 1. 학교알리미 공시에서 실제 학년별 학생 수 + 신입생 추이 조회
+      let studentInfo = await fetchStudentStatus(school)
 
-      // 3. 학생 수 공시 데이터가 없으면 NEIS에서 "학년별 학급 수"라도 가져옴
+      // 2. 학생 수 공시 데이터가 없으면 NEIS에서 "학년별 학급 수"라도 가져옴
       //    (NEIS는 학생 인원을 제공하지 않으므로 학급 수만 가능 — 차트에 그렇게 표기됨)
-      if (!studentInfo && !school._isLocal && school.officeCode) {
+      if (!studentInfo && school.officeCode) {
         studentInfo = await fetchClassCounts(school.officeCode, school.schoolCode)
       }
       

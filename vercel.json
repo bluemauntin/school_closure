@@ -1,5 +1,6 @@
 {
   "rewrites": [
+    { "source": "/sapi/:path*", "destination": "https://www.schoolinfo.go.kr/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

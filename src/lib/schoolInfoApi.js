@@ -1,186 +1,170 @@
 /**
- * 학교알리미 Open API (schoolinfo.go.kr)
+ * 학교알리미 OpenAPI (schoolinfo.go.kr) — 학년별 학생 수 공시 데이터
+ *
+ * 동작하는 호출 형태(실측):
+ *   GET /openApi.do?apiKey=KEY&apiType=09
+ *       &schulKndCode={02|03|04}&sidoCode=NN&sggCode=NNNNN&pbanYr=YYYY
+ *   → 해당 시군구의 모든 학교가 학년별 학생 수 컬럼과 함께 내려온다.
+ *   (apiType 값이 곧 공시항목 코드: 0=학교기본정보, 09=학년별·학급별 학생수)
+ *   학생 수 데이터는 최근 약 2~3개년만 제공된다.
+ *
+ * 주요 응답 필드(항목 09 = 학년별·학급별 학생수):
+ *   SCHUL_NM, SCHUL_CODE
+ *   COL_S1..COL_S6 = 학년별 학생 수 (COL_S1 = 1학년 = 신입생)
+ *   COL_S_SUM      = 전교생 수
+ *   TEACH_CNT      = 교사 수
+ *
+ * schoolinfo.go.kr 은 CORS 헤더를 주지 않으므로 브라우저에서 직접 호출 불가.
+ * 개발(Vite)·배포(Vercel) 모두 '/sapi' 프록시를 통해 호출한다.
  */
 
-const BASE_URL = 'https://www.schoolinfo.go.kr/openApi/api/jsp.do'
+import { SIGUNGU } from '../data/sigunguCodes'
+
+const API_BASE = '/sapi/openApi.do'
 
 function getApiKey() {
   return import.meta.env.VITE_SCHOOLINFO_API_KEY
 }
 
-async function callApi(params) {
+// 시도명(또는 주소) → 학교알리미 sidoCode
+const SIDO_PREFIX = [
+  ['서울', '11'], ['부산', '26'], ['대구', '27'], ['인천', '28'],
+  ['광주', '29'], ['대전', '30'], ['울산', '31'], ['세종', '36'],
+  ['경기', '41'], ['충청북', '43'], ['충북', '43'], ['충청남', '44'], ['충남', '44'],
+  ['전라북', '52'], ['전북', '52'], ['전라남', '46'], ['전남', '46'],
+  ['경상북', '47'], ['경북', '47'], ['경상남', '48'], ['경남', '48'],
+  ['제주', '50'], ['강원', '51'],
+]
+
+// 학교 유형 → schulKndCode (초/중/고만 학생 수 공시 지원)
+function toKndCode(type = '') {
+  if (type.includes('초등')) return '02'
+  if (type.includes('중학')) return '03'
+  if (type.includes('고등')) return '04'
+  return null
+}
+
+function matchSidoCode(text = '') {
+  for (const [prefix, code] of SIDO_PREFIX) {
+    if (text.startsWith(prefix) || text.includes(prefix)) return code
+  }
+  return null
+}
+
+/**
+ * 학교의 주소/지역 문자열에서 sidoCode + sggCode 를 해석
+ */
+export function resolveRegionCodes(school) {
+  const addr = `${school.address || ''} ${school.region || ''}`.trim()
+  if (!addr) return null
+
+  const sidoCode = matchSidoCode(addr)
+  if (!sidoCode) return null
+
+  const candidates = SIGUNGU.filter(s => s.sido === sidoCode)
+  let best = null
+  for (const c of candidates) {
+    const parts = c.name.split(/\s+/)
+    if (parts.every(p => addr.includes(p))) {
+      if (!best || c.name.length > best.name.length) best = c
+    }
+  }
+  if (!best) return null
+  return { sidoCode, sggCode: best.sgg }
+}
+
+// (sido,sgg,knd,year) 단위 시군구 학교 목록 캐시 — 추이 조회 시 재호출 방지
+const listCache = new Map()
+
+async function fetchRegionList(sidoCode, sggCode, kndCode, year) {
   const apiKey = getApiKey()
   if (!apiKey) return null
 
-  const queryParams = new URLSearchParams({
+  const key = `${sidoCode}-${sggCode}-${kndCode}-${year}`
+  if (listCache.has(key)) return listCache.get(key)
+
+  const params = new URLSearchParams({
     apiKey,
-    ...params
+    apiType: '09',   // 학년별·학급별 학생수 (apiType 값이 곧 공시항목 코드)
+    schulKndCode: kndCode,
+    sidoCode,
+    sggCode,
+    pbanYr: String(year),
   })
 
   try {
-    const response = await fetch(`${BASE_URL}?${queryParams}`)
-    if (!response.ok) return null
-    const data = await response.json()
-    return data
-  } catch (error) {
-    console.error('SchoolInfo API Error:', error)
+    const res = await fetch(`${API_BASE}?${params}`)
+    if (!res.ok) { listCache.set(key, null); return null }
+    const data = await res.json()
+    const list = data?.resultCode === 'success' ? (data.list || []) : null
+    listCache.set(key, list)
+    return list
+  } catch (e) {
+    console.error('schoolinfo fetchRegionList error:', e)
+    listCache.set(key, null)
     return null
   }
 }
 
-/**
- * 학교명으로 전국 학교 검색
- */
-export async function searchSchoolInfo(schoolName) {
-  if (!schoolName || schoolName.trim().length < 2) return []
-
-  // '초등학교', '중학교' 등 수식어 제거 후 검색 시도 (매칭률 향상)
-  const cleanName = schoolName.replace(/(초등학교|중학교|고등학교|학교)$/, '').trim()
-
-  const data = await callApi({
-    apiType: '0',
-    pCode: 'B000000001',
-    schul_nm: cleanName
-  })
-
-  if (!data || !data.list) return []
-
-  return data.list.map(s => ({
-    id: s.SCHUL_CODE,
-    name: s.SCHUL_NM,
-    region: s.ADRES,
-    type: s.SCHUL_KND_SC_NM,
-    address: s.ADRES,
-    schoolCode: s.SCHUL_CODE,
-    officeCode: s.ATPT_OFCDC_SC_CODE,
-    _isSchoolInfo: true
-  }))
-}
+const normName = (n = '') => n.replace(/\s+/g, '')
 
 /**
- * 학교명과 지역으로 학교알리미 학교 코드를 찾음
+ * 학교의 학년별 학생 수 + 신입생(1학년) 연도별 추이 조회
+ *
+ * @param {object} school - { name, type, address, region } (NEIS 검색 결과)
+ * @returns studentInfo | null
  */
-export async function findSchoolCodeByName(schoolName, region) {
-  const schools = await searchSchoolInfo(schoolName)
-  if (!schools || schools.length === 0) return null
-  
-  const cleanTarget = schoolName.replace(/\s+/g, '')
-  
-  // 1. 이름과 지역이 정확히 일치하는 경우
-  let match = schools.find(s => 
-    s.name.replace(/\s+/g, '') === cleanTarget && 
-    (region ? s.address.includes(region.slice(0, 2)) : true)
-  )
-  
-  // 2. 이름 포함 관계로 검색
-  if (!match) {
-    match = schools.find(s => s.name.includes(cleanTarget) || cleanTarget.includes(s.name))
-  }
-  
-  return match ? match.schoolCode : (schools[0]?.schoolCode || null)
-}
+export async function fetchStudentStatus(school, years = [2025, 2024, 2023]) {
+  if (!school?.name) return null
 
-/**
- * 다양한 API 응답 패턴에서 학년별 인원 추출 유틸리티
- */
-function extractGradeCount(data, gradeNum) {
-  if (!data) return 0
-  // 패턴 1: COL_1, COL_2 ...
-  if (data[`COL_${gradeNum}`] !== undefined) return Number(data[`COL_${gradeNum}`])
-  // 패턴 2: TOTAL1_SUM, TOTAL2_SUM ...
-  if (data[`TOTAL${gradeNum}_SUM`] !== undefined) return Number(data[`TOTAL${gradeNum}_SUM`])
-  // 패턴 3: TOTAL1_TOT, TOTAL2_TOT ...
-  if (data[`TOTAL${gradeNum}_TOT`] !== undefined) return Number(data[`TOTAL${gradeNum}_TOT`])
-  // 패턴 4: MAN1_TOT + WOMAN1_TOT (제공해주신 데이터 패턴)
-  const man = Number(data[`MAN${gradeNum}_TOT`] || 0)
-  const woman = Number(data[`WOMAN${gradeNum}_TOT`] || 0)
-  if (man > 0 || woman > 0) return man + woman
-  
-  return 0
-}
+  const kndCode = toKndCode(school.type || '')
+  if (!kndCode) return null // 특수학교 등은 미지원
 
-/**
- * 특정 연도의 학년별 학생 수 조회
- */
-async function fetchYearlyGradeStats(schoolCode, year) {
-  // 우선 B000000021(학년별·학급별) 시도
-  let data = await callApi({
-    apiType: '1',
-    pCode: 'B000000021',
-    schul_code: schoolCode,
-    year: year ? String(year) : ''
-  })
-  
-  // 데이터가 없으면 B000000022(학년별·성별) 시도
-  if (!data || !data.list || data.list.length === 0) {
-    data = await callApi({
-      apiType: '1',
-      pCode: 'B000000022',
-      schul_code: schoolCode,
-      year: year ? String(year) : ''
+  const codes = resolveRegionCodes(school)
+  if (!codes) return null
+
+  const target = normName(school.name)
+
+  // 연도별로 해당 시군구 목록을 받아 학교명으로 매칭
+  const perYear = await Promise.all(
+    years.map(async (y) => {
+      const list = await fetchRegionList(codes.sidoCode, codes.sggCode, kndCode, y)
+      if (!list) return null
+      const rec = list.find(r => normName(r.SCHUL_NM) === target)
+      return rec ? { year: y, rec } : null
     })
+  )
+
+  const found = perYear.filter(Boolean)
+  if (found.length === 0) return null
+
+  // years 는 최신순 → found[0] 이 가장 최신 연도
+  const latest = found[0]
+  const rec = latest.rec
+
+  // 학년별 학생 수 (COL_S1..COL_S6)
+  const grades = []
+  for (let g = 1; g <= 6; g++) {
+    const count = Number(rec[`COL_S${g}`] || 0)
+    if (count > 0) grades.push({ grade: g, count })
   }
-  
-  if (!data || !data.list || data.list.length === 0) return null
-  return data.list[0]
-}
 
-/**
- * 학교별 학년별 학생 수 및 연도별 추이 조회
- */
-export async function fetchStudentStatus(schoolCode) {
-  if (!schoolCode) return null
+  const gradeSum = grades.reduce((acc, g) => acc + g.count, 0)
+  const total = Number(rec.COL_S_SUM || 0) || gradeSum
+  const teachers = Number(rec.TEACH_CNT || 0) || null
 
-  const targetYears = [2025, 2024, 2023, 2022]
-  
-  try {
-    const results = await Promise.all(
-      targetYears.map(y => fetchYearlyGradeStats(schoolCode, y))
-    )
+  // 신입생(1학년) 연도별 추이
+  const yearlyTrend = found
+    .map(f => ({ year: f.year, count: Number(f.rec.COL_S1 || 0) }))
+    .filter(t => t.count > 0)
+    .sort((a, b) => a.year - b.year)
 
-    let statsByYear = results.filter(r => r !== null)
-    
-    if (statsByYear.length === 0) {
-      const defaultData = await fetchYearlyGradeStats(schoolCode, '')
-      if (defaultData) statsByYear.push(defaultData)
-    }
-
-    if (statsByYear.length === 0) return null
-
-    const latest = statsByYear[0]
-    
-    // 신입생(1학년) 추이 가공
-    const yearlyTrend = statsByYear
-      .map(s => ({
-        year: Number(s.AY || s.YEAR || 0),
-        count: extractGradeCount(s, 1)
-      }))
-      .filter(t => t.count > 0 && t.year > 0)
-      .sort((a, b) => a.year - b.year)
-
-    // 학년별 분포 가공 (초·중은 3개, 고는 3개, 초등은 최대 6개 학년)
-    const grades = []
-    for (let i = 1; i <= 6; i++) {
-      const count = extractGradeCount(latest, i)
-      if (count > 0) {
-        grades.push({ grade: i, count })
-      }
-    }
-
-    // 전체 학생 수: 응답 필드를 우선 사용하되, 없거나 0이면 학년별 합계로 대체
-    const gradeSum = grades.reduce((acc, g) => acc + g.count, 0)
-    const totalField = Number(latest.TOTAL_SUM || latest.ALL_SUM || latest.COL_13 || 0)
-    const total = totalField > 0 ? totalField : gradeSum
-
-    return {
-      year: latest.AY || latest.YEAR || '2024',
-      grades: grades,
-      total: total,
-      teachers: Number(latest.COL_14 || latest.TEACHER_SUM || 0) || null,
-      yearlyTrend: yearlyTrend.length > 1 ? yearlyTrend : null
-    }
-  } catch (error) {
-    console.error('fetchStudentStatus Error:', error)
-    return null
+  return {
+    year: String(latest.year),
+    grades,
+    total,
+    teachers,
+    yearlyTrend: yearlyTrend.length > 1 ? yearlyTrend : null,
+    schoolCode: rec.SCHUL_CODE,
   }
 }
