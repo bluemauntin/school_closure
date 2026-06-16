@@ -97,11 +97,14 @@ async function fetchRegionList(sidoCode, sggCode, kndCode, year) {
     const res = await fetch(`${API_BASE}?${params}`)
     if (!res.ok) { listCache.set(key, null); return null }
     const data = await res.json()
-    const list = data?.resultCode === 'success' ? (data.list || []) : null
+    console.log(`[schoolInfo] fetchRegionList (sido=${sidoCode} sgg=${sggCode} knd=${kndCode} year=${year}) resultCode=`, data?.resultCode, '/ list.length=', data?.list?.length)
+    // resultCode 비교를 대소문자 무시로 처리
+    const rc = String(data?.resultCode || '').toLowerCase()
+    const list = (rc === 'success' || rc === '200' || Array.isArray(data?.list)) ? (data.list || []) : null
     listCache.set(key, list)
     return list
   } catch (e) {
-    console.error('schoolinfo fetchRegionList error:', e)
+    console.error('[schoolInfo] fetchRegionList error:', e)
     listCache.set(key, null)
     return null
   }
@@ -119,9 +122,13 @@ export async function fetchStudentStatus(school, years = [2025, 2024, 2023]) {
   if (!school?.name) return null
 
   const kndCode = toKndCode(school.type || '')
-  if (!kndCode) return null // 특수학교 등은 미지원
+  if (!kndCode) {
+    console.log('[schoolInfo] fetchStudentStatus: 지원 안 되는 학교 유형:', school.type)
+    return null
+  }
 
   const codes = resolveRegionCodes(school)
+  console.log('[schoolInfo] fetchStudentStatus:', school.name, '/ addr:', `${school.address || ''} ${school.region || ''}`.trim(), '/ codes:', codes)
   if (!codes) return null
 
   const target = normName(school.name)

@@ -132,6 +132,7 @@ export default function SchoolPredictor() {
       }
       
       // 가져온 학생 수 데이터를 화면 상태(selected)에 반영해야 차트/통계가 렌더링됨
+      console.log('[SchoolPredictor] 최종 studentInfo:', studentInfo, '/ yearlyTrend:', studentInfo?.yearlyTrend?.length)
       setSelected(prev => ({ ...(prev || school), studentInfo }))
 
       const schoolForAI = {
