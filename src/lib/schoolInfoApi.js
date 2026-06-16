@@ -38,10 +38,11 @@ const SIDO_PREFIX = [
 ]
 
 // 학교 유형 → schulKndCode (초/중/고만 학생 수 공시 지원)
+// type: SCHUL_KND_SC_NM ("고등학교") 또는 HS_SC_NM ("특성화고" 등) 모두 처리
 function toKndCode(type = '') {
   if (type.includes('초등')) return '02'
   if (type.includes('중학')) return '03'
-  if (type.includes('고등')) return '04'
+  if (type.includes('고등') || type.includes('특성화고') || type.includes('마이스터고') || type.includes('자율고') || type.includes('특목고')) return '04'
   return null
 }
 

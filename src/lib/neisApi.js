@@ -76,7 +76,8 @@ function mapSchoolRow(s) {
     id: s.SD_SCHUL_CODE,
     name: s.SCHUL_NM,
     region: `${s.LCTN_SC_NM} ${s.JU_ORG_NM}`,
-    type: s.SCHUL_KND_SC_NM,
+    type: s.SCHUL_KND_SC_NM,      // 초등학교 / 중학교 / 고등학교
+    hsType: s.HS_SC_NM || '',     // 일반고 / 특성화고 / 마이스터고 / 자율고 등
     address: s.ORG_RDNMA,
     phone: s.ORG_TELNO,
     establish: s.FOND_SC_NM,

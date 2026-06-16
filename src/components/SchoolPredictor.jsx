@@ -15,6 +15,7 @@ ChartJS.register(CategoryScale, LinearScale, LineElement, PointElement, Filler, 
 const RISK_CLASS = { 고위험: 'high', 주의: 'medium', 안전: 'low', 분석불가: 'medium' }
 const RISK_EMOJI = { 고위험: '🔴', 주의: '🟡', 안전: '🟢', 분석불가: '⚪' }
 const TYPE_EMOJI = { '초등학교': '🏫', '중학교': '🏫', '고등학교': '🏫', '특수학교': '🏫' }
+const displayType = (s) => s.hsType || s.type
 
 function getRiskClass(school) {
   const lvl = calcRiskLevel(school)
@@ -304,7 +305,7 @@ export default function SchoolPredictor() {
                       )}
                     </div>
                     <div className="dropdown-region">
-                      {s.region || s.address} · {s.type}
+                      {s.region || s.address} · {displayType(s)}
                       {s.establish && <span style={{ marginLeft: '0.3rem', opacity: 0.6 }}>({s.establish})</span>}
                     </div>
                   </div>
@@ -351,7 +352,7 @@ export default function SchoolPredictor() {
             <div>
               <div className="pred-school-name">{selected.name}</div>
               <div className="pred-region">{selected.region || selected.address}</div>
-              <span className="pred-type-tag">{selected.type}</span>
+              <span className="pred-type-tag">{displayType(selected)}</span>
               {selected.establish && (
                 <span className="pred-type-tag" style={{ marginLeft: '0.4rem', background: 'rgba(99,102,241,0.15)', borderColor: 'rgba(99,102,241,0.3)', color: '#a5b4fc' }}>
                   {selected.establish}
