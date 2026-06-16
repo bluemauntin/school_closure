@@ -1,6 +1,25 @@
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
 const GROQ_MODEL = 'llama-3.3-70b-versatile'
 
+// CJK 통합한자 + 확장 블록 + 일본어 가나 전체 제거
+const CJK_RE = /[⺀-⻿⼀-⿟぀-ヿ㐀-䶿一-鿿豈-﫿]/g
+
+function stripCJK(text) {
+  if (typeof text !== 'string') return text
+  return text.replace(CJK_RE, '').replace(/\s{2,}/g, ' ').trim()
+}
+
+function sanitizeObj(obj) {
+  if (!obj || typeof obj !== 'object') return obj
+  return Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, stripCJK(v)]))
+}
+
+const KOREAN_ONLY_RULE =
+  '[언어 절대 규칙] 응답의 모든 텍스트는 반드시 한국어(한글)로만 작성하세요. ' +
+  '한자(漢字)를 절대 사용하지 마세요. 예를 들어 연도 표기는 반드시 "2024년"으로 쓰고 "2024年" 또는 "2024年的"처럼 한자를 절대 쓰지 마세요. ' +
+  '영어 단어도 단 하나라도 사용하지 마세요. ' +
+  '오직 순수한 한글, 숫자, 문장부호만 허용됩니다. 한자나 영어를 사용하면 업무 실패로 간주됩니다.'
+
 async function callGroq(messages, options = {}) {
   const apiKey = import.meta.env.VITE_GROQ_API_KEY
 
@@ -38,7 +57,6 @@ export async function predictSchoolClosure(school) {
     ? school.enrollment.map((e) => `${e.year}년 ${e.count}명`).join(', ')
     : '데이터 없음'
 
-  // NEIS 검색 학교(신입생 데이터 없음)와 로컬 샘플 학교 분기
   const userContent = hasEnrollment
     ? `다음 학교의 폐교 위험도를 분석해주세요.
 
@@ -74,7 +92,7 @@ export async function predictSchoolClosure(school) {
     {
       role: 'system',
       content:
-        '당신은 한국 교육 통계를 분석하는 전문가입니다. 학교 신입생 수 추이 또는 지역 특성을 바탕으로 폐교 위험도를 평가합니다. 답변은 반드시 정중한 존댓말을 사용하세요. [언어 절대 규칙] 모든 텍스트는 반드시 한국어(한글)로만 작성하세요. 영어 단어(예: "school", "risk", "analysis" 등)를 단 하나라도 사용하지 마세요. 한자(漢字)를 단 하나라도 사용하지 마세요. 한자 병기(예: 대응책(對應策))도 절대 금지입니다. 오직 순수한 한글과 숫자, 기호만 사용하십시오. 영어나 한자를 사용하면 업무 실패로 간주됩니다. JSON 형식을 엄격히 준수하세요.',
+        `당신은 한국 교육 통계를 분석하는 전문가입니다. 학교 신입생 수 추이 또는 지역 특성을 바탕으로 폐교 위험도를 평가합니다. 답변은 반드시 정중한 존댓말을 사용하세요. ${KOREAN_ONLY_RULE} JSON 형식을 엄격히 준수하세요.`,
     },
     {
       role: 'user',
@@ -86,7 +104,8 @@ export async function predictSchoolClosure(school) {
   const match = content.match(/\{[\s\S]*\}/)
   if (match) {
     try {
-      return JSON.parse(match[0])
+      const parsed = JSON.parse(match[0])
+      return sanitizeObj(parsed)
     } catch {
       // fallback
     }
@@ -94,7 +113,7 @@ export async function predictSchoolClosure(school) {
   return {
     risk: '분석불가',
     expectedYear: '알 수 없음',
-    analysis: content,
+    analysis: stripCJK(content),
     recommendation: '',
   }
 }
@@ -104,7 +123,7 @@ export async function generateNewsSummaries() {
   const messages = [
     {
       role: 'system',
-      content: '당신은 한국 교육 뉴스를 요약하는 기자입니다. JSON 배열만 응답하세요. 답변은 반드시 정중한 존댓말을 사용하세요. [언어 절대 규칙] 모든 텍스트는 반드시 한국어(한글)로만 작성하세요. 영어 단어(예: "policy", "school" 등)를 단 하나라도 사용하지 마세요. 한자(漢字) 사용도 엄격히 금지합니다. 오직 순수한 한글과 숫자, 기호만 사용하십시오. 영어나 한자를 사용하면 업무 실패로 간주됩니다.',
+      content: `당신은 한국 교육 뉴스를 요약하는 기자입니다. JSON 배열만 응답하세요. 답변은 반드시 정중한 존댓말을 사용하세요. ${KOREAN_ONLY_RULE}`,
     },
     {
       role: 'user',
@@ -127,7 +146,8 @@ export async function generateNewsSummaries() {
   const match = content.match(/\[[\s\S]*\]/)
   if (match) {
     try {
-      return JSON.parse(match[0])
+      const parsed = JSON.parse(match[0])
+      return parsed.map(item => sanitizeObj(item))
     } catch {
       return []
     }
