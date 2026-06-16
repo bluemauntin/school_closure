@@ -162,12 +162,19 @@ export default function SchoolPredictor() {
     }
   }
 
-  // 모든 그래프는 "최근 10년 신입생(1학년) 수 추이"로 통일한다.
-  //  - 로컬 샘플: enrollment(연도별 신입생) → 10년 추이
-  //  - 학교알리미: studentInfo.yearlyTrend (이미 10개년, actual/cohort/estimate 혼합)
-  const trend = selected?._isLocal
+  // 그래프 데이터 결정 (우선순위: yearlyTrend → grades 폴백)
+  const yearlyTrend = selected?._isLocal
     ? buildTenYearTrend((selected.enrollment || []).map(e => ({ year: e.year, count: e.count, kind: 'actual' })))
     : (selected?.studentInfo?.yearlyTrend || [])
+
+  const gradesData = !selected?._isLocal ? (selected?.studentInfo?.grades || []) : []
+  // yearlyTrend가 없으면 학년별 분포(grades)로 폴백
+  const isGradeFallback = yearlyTrend.length === 0 && gradesData.length > 0
+  const isClassCount = selected?.studentInfo?._isClassCount === true
+
+  const trend = isGradeFallback
+    ? gradesData.map(g => ({ year: g.grade, count: g.count, kind: 'actual' }))
+    : yearlyTrend
 
   const hasChart = trend.length > 0
   const kinds = trend.map(t => t.kind || 'actual')
@@ -176,7 +183,7 @@ export default function SchoolPredictor() {
 
   const chartData = hasChart
     ? {
-        labels: trend.map(t => `${t.year}`),
+        labels: trend.map(t => isGradeFallback ? `${t.year}학년` : `${t.year}`),
         datasets: [
           {
             label: '신입생(1학년) 수',
@@ -209,7 +216,9 @@ export default function SchoolPredictor() {
       legend: { display: false },
       tooltip: {
         callbacks: {
-          label: (ctx) => ` 신입생 ${ctx.raw}명 · ${KIND_TEXT[kinds[ctx.dataIndex]] || '실측'}`,
+          label: (ctx) => isGradeFallback
+            ? ` ${ctx.raw}${isClassCount ? '학급' : '명'}`
+            : ` 신입생 ${ctx.raw}명 · ${KIND_TEXT[kinds[ctx.dataIndex]] || '실측'}`,
         },
       },
     },
@@ -404,8 +413,12 @@ export default function SchoolPredictor() {
           {/* 차트 영역 — 항상 최근 10년 신입생(1학년) 수 추이 */}
           <div style={{ marginBottom: '1.5rem' }}>
             <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-              <span>📊 최근 10년 신입생(1학년) 수 추이</span>
-              {hasChart && (
+              <span>
+                {isGradeFallback
+                  ? `📊 학년별 ${isClassCount ? '학급 수' : '학생 수'} 분포`
+                  : '📊 최근 10년 신입생(1학년) 수 추이'}
+              </span>
+              {hasChart && !isGradeFallback && (
                 <span style={{ fontSize: '0.7rem', opacity: 0.75, display: 'inline-flex', gap: '0.6rem' }}>
                   <span style={{ color: '#EF476F' }}>● 실측</span>
                   <span style={{ color: '#FF6B35' }}>● 추정(코호트)</span>

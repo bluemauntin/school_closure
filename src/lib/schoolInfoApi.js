@@ -79,7 +79,10 @@ const listCache = new Map()
 
 async function fetchRegionList(sidoCode, sggCode, kndCode, year) {
   const apiKey = getApiKey()
-  if (!apiKey) return null
+  if (!apiKey) {
+    console.warn('[schoolInfo] VITE_SCHOOLINFO_API_KEY 미설정 → 학교알리미 조회 불가. 환경변수를 확인하세요.')
+    return null
+  }
 
   const key = `${sidoCode}-${sggCode}-${kndCode}-${year}`
   if (listCache.has(key)) return listCache.get(key)
