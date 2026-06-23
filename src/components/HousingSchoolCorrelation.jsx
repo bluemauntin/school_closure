@@ -187,7 +187,7 @@ export default function HousingSchoolCorrelation() {
                     fontWeight: selected === d.name ? 700 : 400,
                   }}
                 >
-                  {d.name.replace('구', '')}
+                  {d.name.length > 2 ? d.name.replace(/구$/, '') : d.name}
                 </button>
               ))}
             </div>
