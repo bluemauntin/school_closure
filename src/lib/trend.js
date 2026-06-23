@@ -58,9 +58,10 @@ export function buildTenYearTrend(known, endYear) {
   for (let y = first; y <= last; y++) {
     if (byYear.has(y)) {
       out.push(byYear.get(y))
-    } else {
-      const v = project ? Math.max(0, Math.round(project(y))) : 0
-      out.push({ year: y, count: v, kind: 'estimate' })
+    } else if (project) {
+      const v = Math.round(project(y))
+      // 추정값이 0 이하면 학교 개교 이전으로 간주 → 그래프에 표시하지 않음
+      if (v > 0) out.push({ year: y, count: v, kind: 'estimate' })
     }
   }
   return out
