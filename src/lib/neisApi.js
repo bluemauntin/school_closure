@@ -68,6 +68,29 @@ async function searchInOffice(keyword, officeCode, apiKey, pSize = 100) {
   }
 }
 
+// NEIS HS_SC_NM 정규화:
+//   - "특성화고등학교" 형태(등학교 붙은 형태) → 단축형
+//   - "특수목적고(등학교)": NEIS 4대 분류 중 하나. 마이스터고·과학고·외국어고 등이
+//     이 값으로 내려올 수 있으므로 '특목고'로 매핑해 검색·필터에서 일관되게 처리
+const HS_TYPE_MAP = {
+  '특성화고등학교': '특성화고',
+  '마이스터고등학교': '마이스터고',
+  '일반고등학교': '일반고',
+  '자율고등학교': '자율고',
+  '특목고등학교': '특목고',
+  '특수목적고등학교': '특목고',   // NEIS 4대 분류 대응
+  '특수목적고': '특목고',         // NEIS 4대 분류 단축형 대응
+  '외국어고등학교': '외국어고',
+  '과학고등학교': '과학고',
+  '예술고등학교': '예술고',
+  '체육고등학교': '체육고',
+  '국제고등학교': '국제고',
+}
+
+function normalizeHsType(raw = '') {
+  return HS_TYPE_MAP[raw] || raw
+}
+
 /**
  * API 응답 row를 학교 객체로 변환
  */
@@ -76,8 +99,8 @@ function mapSchoolRow(s) {
     id: s.SD_SCHUL_CODE,
     name: s.SCHUL_NM,
     region: `${s.LCTN_SC_NM} ${s.JU_ORG_NM}`,
-    type: s.SCHUL_KND_SC_NM,      // 초등학교 / 중학교 / 고등학교
-    hsType: s.HS_SC_NM || '',     // 일반고 / 특성화고 / 마이스터고 / 자율고 등
+    type: s.SCHUL_KND_SC_NM,                        // 초등학교 / 중학교 / 고등학교
+    hsType: normalizeHsType(s.HS_SC_NM || ''),      // 특성화고 / 마이스터고 / 일반고 / 자율고 등
     address: s.ORG_RDNMA,
     phone: s.ORG_TELNO,
     establish: s.FOND_SC_NM,

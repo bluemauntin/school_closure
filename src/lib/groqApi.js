@@ -50,6 +50,17 @@ async function callGroq(messages, options = {}) {
   return data.choices[0].message.content
 }
 
+// 학교 유형별 특성 안내 (AI 분석 품질 향상)
+const HS_TYPE_CONTEXT = {
+  '특성화고': '직업·취업 중심 특성화고등학교입니다. 지역 산업 수요와 취업률, 학생 충원율이 폐교 위험도에 직접적인 영향을 미칩니다.',
+  '마이스터고': '정부 지정 마이스터고등학교입니다. 국가 지원으로 폐교 가능성은 낮으나 지역 산업 기반 약화 시 재지정 취소 위험이 있습니다.',
+  '일반고': '일반 고등학교입니다. 학령인구 감소와 학생 이탈(특목고·자사고 선호) 두 요인을 함께 고려해야 합니다.',
+  '자율고': '자율형 사립·공립 고등학교입니다. 학교 자체 경쟁력(교육 프로그램·입시 실적)에 따라 충원율 편차가 크게 나타납니다.',
+  '특목고': '특수목적 고등학교(외고·과학고 포함)입니다. 수도권 집중 현상으로 비수도권의 경우 지원자 감소 위험이 있습니다.',
+  '외국어고': '외국어고등학교입니다. 영어 중심 교육 수요 변화 및 일반고 전환 정책 기조의 영향을 받을 수 있습니다.',
+  '과학고': '과학고등학교입니다. 이공계 수요는 유지되나 지역 우수 학생의 수도권 유출이 주요 위험 요인입니다.',
+}
+
 /** 학교 폐교 위험도 예측 */
 export async function predictSchoolClosure(school) {
   const hasEnrollment = school.enrollment && school.enrollment.length > 0
@@ -57,42 +68,45 @@ export async function predictSchoolClosure(school) {
     ? school.enrollment.map((e) => `${e.year}년 ${e.count}명`).join(', ')
     : '데이터 없음'
 
+  const typeContext = HS_TYPE_CONTEXT[school.type] || ''
+  const typeNote = typeContext ? `\n학교 유형 특성: ${typeContext}` : ''
+
   const userContent = hasEnrollment
     ? `다음 학교의 폐교 위험도를 분석해주세요.
 
 학교명: ${school.name}
 지역: ${school.region || school.address || '알 수 없음'}
-유형: ${school.type}
+유형: ${school.type}${typeNote}
 연도별 신입생 수: ${enrollmentStr}
 
 아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이):
 {
   "risk": "고위험 또는 주의 또는 안전",
   "expectedYear": "예상 폐교 연도(예: 2028년 예상) 또는 당분간 안전",
-  "analysis": "2~3문장 분석 근거",
-  "recommendation": "단기 권고사항 한 문장"
+  "analysis": "학교 유형 특성을 반영한 2~3문장 분석 근거",
+  "recommendation": "해당 학교 유형에 맞는 단기 권고사항 한 문장"
 }`
     : `신입생 통계 데이터 없이 아래 학교의 폐교 위험도를 지역·학교유형 기반으로 추정해주세요.
 
 학교명: ${school.name}
 지역: ${school.region || school.address || '알 수 없음'}
-유형: ${school.type}
+유형: ${school.type}${typeNote}
 
-한국의 지역별 학령인구 감소 트렌드, 농촌·도시 여부, 학교 유형을 종합적으로 고려해서 분석하세요.
+한국의 지역별 학령인구 감소 트렌드, 농촌·도시 여부, 학교 유형별 특성을 종합적으로 고려해서 분석하세요.
 
 아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이):
 {
   "risk": "고위험 또는 주의 또는 안전",
   "expectedYear": "예상 폐교 시기(예: 2030년 이후 주의 필요) 또는 당분간 안전",
   "analysis": "지역 특성과 학교 유형 기반 2~3문장 분석",
-  "recommendation": "단기 권고사항 한 문장"
+  "recommendation": "해당 학교 유형에 맞는 단기 권고사항 한 문장"
 }`
 
   const messages = [
     {
       role: 'system',
       content:
-        `당신은 한국 교육 통계를 분석하는 전문가입니다. 학교 신입생 수 추이 또는 지역 특성을 바탕으로 폐교 위험도를 평가합니다. 답변은 반드시 정중한 존댓말을 사용하세요. ${KOREAN_ONLY_RULE} JSON 형식을 엄격히 준수하세요.`,
+        `당신은 한국 교육 통계를 분석하는 전문가입니다. 특성화고, 마이스터고, 일반고, 자율고 등 고등학교 유형별 특성을 구분하여 폐교 위험도를 평가합니다. 답변은 반드시 정중한 존댓말을 사용하세요. ${KOREAN_ONLY_RULE} JSON 형식을 엄격히 준수하세요.`,
     },
     {
       role: 'user',
