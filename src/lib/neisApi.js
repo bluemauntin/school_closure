@@ -109,6 +109,13 @@ function mapSchoolRow(s) {
   }
 }
 
+// 방송통신고, 부설학교 등 성인·특수 운영 학교는 폐교 예측 대상이 아니므로 제외
+const EXCLUDED_NAME_KEYWORDS = ['방송통신', '부설', '각종학교']
+
+function isRegularSchool(school) {
+  return !EXCLUDED_NAME_KEYWORDS.some(kw => school.name.includes(kw))
+}
+
 /**
  * 학교명으로 전국 학교 검색
  * - API 키가 있으면: 전국 17개 시도교육청에 동시 요청 → 모든 학교 검색 가능
@@ -134,6 +141,7 @@ export async function searchSchools(keyword) {
       const allSchools = results
         .filter((r) => r.status === 'fulfilled')
         .flatMap((r) => r.value)
+        .filter(isRegularSchool)
 
       // 중복 제거 (학교코드 기준)
       const seen = new Set()
@@ -174,7 +182,7 @@ export async function searchSchools(keyword) {
     if (data.RESULT?.CODE === 'INFO-200') return []
 
     const rows = data.schoolInfo?.[1]?.row || []
-    return rows.map(mapSchoolRow)
+    return rows.map(mapSchoolRow).filter(isRegularSchool)
   } catch (err) {
     console.error('NEIS API 오류:', err)
     return []
