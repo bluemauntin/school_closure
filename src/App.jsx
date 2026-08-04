@@ -1,5 +1,6 @@
 import Hero from './components/Hero'
 import StatsDashboard from './components/StatsDashboard'
+import ClosedSchoolMap from './components/ClosedSchoolMap'
 import SchoolPredictor from './components/SchoolPredictor'
 import HousingSchoolCorrelation from './components/HousingSchoolCorrelation'
 import IdeaBoard from './components/IdeaBoard'
@@ -19,6 +20,7 @@ function App() {
           </a>
           <div className="nav-links">
             <a href="#stats">현황 통계</a>
+            <a href="#map">폐교 지도</a>
             <a href="#predictor">폐교 예측</a>
             <a href="#housing">도시개발 분석</a>
             <a href="#ideas">아이디어 보드</a>
@@ -44,6 +46,10 @@ function App() {
 
         <section id="stats">
           <StatsDashboard />
+        </section>
+
+        <section id="map">
+          <ClosedSchoolMap />
         </section>
 
         <section id="predictor">
