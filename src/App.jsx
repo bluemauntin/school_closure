@@ -8,7 +8,10 @@ function App() {
   return (
     <div>
       <header className="site-header">
-        <div className="award-banner">🏆 교육공공데이터 AI활용대회 우수상 수상</div>
+        <div className="award-banner">
+          <span className="award-trophy">🏆</span>
+          <span>교육공공데이터 AI활용대회 우수상 수상</span>
+        </div>
         <nav className="navbar">
           <a className="nav-brand" href="#top">
             <div className="brand-icon">🏫</div>
