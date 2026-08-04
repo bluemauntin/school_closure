@@ -37,8 +37,16 @@ html { scroll-behavior: smooth; }
 body { background: var(--bg-primary); color: var(--text-primary); min-height: 100vh; overflow-x: hidden; }
 
 /* ── NAVBAR ── */
+.site-header { position: fixed; top: 0; left: 0; right: 0; z-index: 1000; }
+.award-banner {
+  text-align: center;
+  background: rgba(255, 209, 102, 0.1);
+  border-bottom: 1px solid rgba(255, 209, 102, 0.25);
+  color: var(--accent-gold);
+  font-size: 0.7rem; font-weight: 700; letter-spacing: 0.01em;
+  padding: 0.35rem 1rem;
+}
 .navbar {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
   display: flex; align-items: center; justify-content: space-between;
   padding: 0.9rem 2rem;
   background: rgba(8, 13, 26, 0.88);

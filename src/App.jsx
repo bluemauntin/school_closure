@@ -7,18 +7,21 @@ import IdeaBoard from './components/IdeaBoard'
 function App() {
   return (
     <div>
-      <nav className="navbar">
-        <a className="nav-brand" href="#top">
-          <div className="brand-icon">🏫</div>
-          <span>폐교 리포트</span>
-        </a>
-        <div className="nav-links">
-          <a href="#stats">현황 통계</a>
-          <a href="#predictor">폐교 예측</a>
-          <a href="#housing">도시개발 분석</a>
-          <a href="#ideas">아이디어 보드</a>
-        </div>
-      </nav>
+      <header className="site-header">
+        <div className="award-banner">🏆 교육공공데이터 AI활용대회 우수상 수상</div>
+        <nav className="navbar">
+          <a className="nav-brand" href="#top">
+            <div className="brand-icon">🏫</div>
+            <span>폐교 리포트</span>
+          </a>
+          <div className="nav-links">
+            <a href="#stats">현황 통계</a>
+            <a href="#predictor">폐교 예측</a>
+            <a href="#housing">도시개발 분석</a>
+            <a href="#ideas">아이디어 보드</a>
+          </div>
+        </nav>
+      </header>
 
       <main id="top">
         <Hero />
