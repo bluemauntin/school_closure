@@ -7,7 +7,7 @@ import IdeaBoard from './components/IdeaBoard'
 function App() {
   return (
     <div>
-      <header className="site-header">
+      <header>
         <div className="award-banner">
           <span className="award-trophy">🏆</span>
           <span>교육공공데이터 AI활용대회 우수상 수상</span>
