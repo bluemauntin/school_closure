@@ -2,19 +2,52 @@ import { useMemo, useState } from 'react'
 import { Map, MapMarker, MarkerClusterer, useKakaoLoader } from 'react-kakao-maps-sdk'
 import CLOSED_SCHOOLS from '../data/closedSchools.json'
 
+// 사이트 전역 위험도 팔레트(risk-low/medium/high)와 동일한 색으로 통일:
+// 자체활용(계속 쓰이는 중) = good, 대부(남에게 넘어간 상태) = 중립, 미활용(방치) = 주의
 const STATUS_COLOR = {
   자체활용: '#06D6A0',
-  대부: '#4895EF',
+  대부: '#FFD166',
   미활용: '#EF476F',
+}
+// 마커·범례·상세패널에서 공통으로 쓰는 아이콘 — 색만으로 구분하지 않도록 형태로도 구분
+const STATUS_ICON = {
+  자체활용: '✓',
+  대부: '→',
+  미활용: '!',
+}
+const STATUS_GLYPH_SVG = {
+  자체활용: '<path d="M8.7 12.6l3 3L18 8.4" stroke="#0B1120" stroke-width="2.3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
+  대부: '<path d="M7.3 12.3h10.4m0 0l-3.6-3.6m3.6 3.6l-3.6 3.6" stroke="#0B1120" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
+  미활용: '<rect x="11.8" y="6.8" width="2.4" height="7.5" rx="1.2" fill="#0B1120"/><circle cx="13" cy="17.3" r="1.5" fill="#0B1120"/>',
 }
 const STATUS_LABELS = Object.keys(STATUS_COLOR)
 const SIDO_LIST = [...new Set(CLOSED_SCHOOLS.map((s) => s.sido))].sort()
 
-function circleMarkerImage(color) {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22"><circle cx="11" cy="11" r="8" fill="${color}" stroke="#0B1120" stroke-width="2"/></svg>`
-  return { src: `data:image/svg+xml;base64,${btoa(svg)}`, size: { width: 22, height: 22 } }
+// 지도 위 점(dot) 대신 핀 모양 + 흰 배지 안에 상태별 아이콘을 그려 넣어 구분을 더 쉽게 함
+function pinMarkerImage(color, glyphSvg) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="34" viewBox="0 0 26 34">
+    <path d="M13 0C6.1 0 0.5 5.5 0.5 12.3c0 9 12.5 21.2 12.5 21.2s12.5-12.2 12.5-21.2C25.5 5.5 19.9 0 13 0z" fill="${color}" stroke="#0B1120" stroke-width="1.3"/>
+    <circle cx="13" cy="12.3" r="7.4" fill="#F7F9FC"/>
+    ${glyphSvg}
+  </svg>`
+  return { src: `data:image/svg+xml;base64,${btoa(svg)}`, size: { width: 26, height: 34 } }
 }
-const MARKER_IMAGES = Object.fromEntries(STATUS_LABELS.map((s) => [s, circleMarkerImage(STATUS_COLOR[s])]))
+const MARKER_IMAGES = Object.fromEntries(
+  STATUS_LABELS.map((s) => [s, pinMarkerImage(STATUS_COLOR[s], STATUS_GLYPH_SVG[s])])
+)
+
+// 클러스터는 여러 상태가 섞여 있으므로 상태색이 아닌 브랜드색(주황)의 중립 배지로 표시
+const CLUSTER_STYLES = [
+  { size: 40, opacity: 0.85, fontSize: 13, fontWeight: 700 },
+  { size: 52, opacity: 0.9, fontSize: 14, fontWeight: 700 },
+  { size: 64, opacity: 0.95, fontSize: 15, fontWeight: 800 },
+].map(({ size, opacity, fontSize, fontWeight }) => ({
+  width: `${size}px`, height: `${size}px`, lineHeight: `${size}px`,
+  background: `rgba(255,107,53,${opacity})`,
+  border: '3px solid rgba(8,13,26,0.9)', borderRadius: '50%',
+  color: '#fff', textAlign: 'center', fontWeight, fontSize: `${fontSize}px`,
+  boxShadow: '0 2px 10px rgba(0,0,0,0.35)',
+}))
 
 export default function ClosedSchoolMap() {
   const [loading, error] = useKakaoLoader({
@@ -70,7 +103,7 @@ export default function ClosedSchoolMap() {
                   background: `${STATUS_COLOR[label]}18`,
                 } : undefined}
               >
-                ● {label}
+                {STATUS_ICON[label]} {label}
               </button>
             )
           })}
@@ -85,7 +118,7 @@ export default function ClosedSchoolMap() {
           ) : (
             <Map center={{ lat: 36.2, lng: 127.9 }} level={12} style={{ width: '100%', height: '520px' }}>
               {!loading && (
-                <MarkerClusterer averageCenter minLevel={6} gridSize={70}>
+                <MarkerClusterer averageCenter minLevel={6} gridSize={70} styles={CLUSTER_STYLES} calculator={[10, 100]}>
                   {filtered.map((s) => (
                     <MapMarker
                       key={s.id}
@@ -113,7 +146,7 @@ export default function ClosedSchoolMap() {
                   border: `1px solid ${STATUS_COLOR[selected.status]}44`,
                 }}
               >
-                ● {selected.status}
+                {STATUS_ICON[selected.status]} {selected.status}
               </span>
               <div className="map-detail-info">
                 <div>📍 {selected.address}</div>
