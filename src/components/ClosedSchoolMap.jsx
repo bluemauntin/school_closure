@@ -270,6 +270,31 @@ export default function ClosedSchoolMap() {
               지도의 마커를 클릭하면<br />상세 정보가 표시됩니다.
             </div>
           )}
+
+          <div className="map-usage-stats">
+            <div className="map-usage-stats-title">전국 폐교 활용 현황</div>
+            <div className="map-usage-bar">
+              {STATUS_LABELS.map((label) => (
+                <span key={label} style={{ width: `${OVERALL_STATUS_PCT[label]}%`, background: STATUS_COLOR[label] }} />
+              ))}
+            </div>
+            <div className="map-usage-ratio">
+              {STATUS_LABELS.map((label, i) => (
+                <span key={label}>
+                  {i > 0 && <span className="map-usage-ratio-sep">:</span>}
+                  <span style={{ color: STATUS_COLOR[label] }}>{OVERALL_STATUS_PCT[label]}%</span>
+                </span>
+              ))}
+            </div>
+            <div className="map-usage-legend">
+              {STATUS_LABELS.map((label) => (
+                <div key={label} className="map-usage-legend-item">
+                  <span className="map-usage-dot" style={{ background: STATUS_COLOR[label] }} />
+                  {label} {OVERALL_STATUS_COUNTS[label].toLocaleString()}곳
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </div>
