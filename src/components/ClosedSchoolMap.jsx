@@ -63,7 +63,8 @@ function dominantStatus(counts) {
 }
 
 // 대한민국 영역을 벗어난 빈 타일(바다 밖 등)이 보이지 않도록 이동 가능 범위를 제한
-const KOREA_BOUNDS = { minLat: 32.9, maxLat: 39.0, minLng: 124.5, maxLng: 132.0 }
+// (실제 폐교 데이터 범위: lat 33.24~38.51, lng 124.75~130.91 — 여기에 약간의 여백만 둠)
+const KOREA_BOUNDS = { minLat: 33.0, maxLat: 38.8, minLng: 124.6, maxLng: 131.2 }
 
 function clampMapCenter(map) {
   try {
@@ -173,7 +174,7 @@ export default function ClosedSchoolMap() {
             <div className="map-error">지도를 불러오지 못했습니다. 카카오맵 키 설정을 확인해 주세요.</div>
           ) : (
             <Map
-              center={{ lat: 36.2, lng: 127.9 }} level={12} maxLevel={13}
+              center={{ lat: 36.2, lng: 127.9 }} level={12}
               style={{ width: '100%', height: '520px' }}
               onIdle={clampMapCenter}
             >
