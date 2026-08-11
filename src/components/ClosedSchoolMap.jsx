@@ -218,6 +218,12 @@ export default function ClosedSchoolMap() {
                 <div>📍 {selected.address}</div>
                 <div>🏫 {selected.level} · {selected.closedYear}년 폐교</div>
                 <div>🗺 {selected.sido} {selected.sigungu}</div>
+                {selected.phone && (
+                  <div>
+                    📞 <a href={`tel:${selected.phone.replace(/-/g, '')}`} style={{ color: 'inherit' }}>{selected.phone}</a>
+                    {selected.dept ? ` · ${selected.dept}` : ''}
+                  </div>
+                )}
               </div>
             </div>
           ) : (
