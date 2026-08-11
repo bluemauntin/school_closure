@@ -8,7 +8,7 @@ import { SCHOOLS, calcRiskLevel, RISK_LABELS } from '../data/schools'
 import { predictSchoolClosure } from '../lib/groqApi'
 import { searchSchools, fetchClassCounts } from '../lib/neisApi'
 import { fetchStudentStatus } from '../lib/schoolInfoApi'
-import { buildTenYearTrend } from '../lib/trend'
+import { buildTenYearTrend, estimateClosureTrend, buildExpectedYearText, buildTrendBasisText } from '../lib/trend'
 
 ChartJS.register(CategoryScale, LinearScale, LineElement, PointElement, Filler, Tooltip)
 
@@ -148,8 +148,13 @@ export default function SchoolPredictor() {
     if (school._isLocal && school.enrollment) {
       setLoading(true)
       try {
-        const result = await predictSchoolClosure(school)
-        setPrediction(result)
+        const trend = estimateClosureTrend(school.enrollment.map(e => ({ year: e.year, count: e.count, kind: 'actual' })))
+        const result = await predictSchoolClosure(school, trend)
+        setPrediction({
+          ...result,
+          expectedYear: buildExpectedYearText(trend, result.risk),
+          trendBasis: buildTrendBasisText(trend),
+        })
       } catch (e) {
         setError(e.message || 'AI 예측 중 오류가 발생했습니다.')
       } finally {
@@ -192,8 +197,17 @@ export default function SchoolPredictor() {
         }))
       }
 
-      const result = await predictSchoolClosure(schoolForAI)
-      setPrediction(result)
+      // 학급 수(_isClassCount) 데이터는 "신입생 수"와 단위가 달라 추세 계산에 쓰면 안 됨
+      const trend = (studentInfo?.yearlyTrend?.length > 0 && !studentInfo._isClassCount)
+        ? estimateClosureTrend(studentInfo.yearlyTrend)
+        : { available: false }
+
+      const result = await predictSchoolClosure(schoolForAI, trend)
+      setPrediction({
+        ...result,
+        expectedYear: buildExpectedYearText(trend, result.risk),
+        trendBasis: buildTrendBasisText(trend),
+      })
     } catch (e) {
       setError(e.message || 'AI 예측 중 오류가 발생했습니다.')
     } finally {
@@ -534,6 +548,15 @@ export default function SchoolPredictor() {
                     <span>{prediction.expectedYear}</span>
                   </div>
                 </div>
+                {prediction.trendBasis && (
+                  <div style={{
+                    marginTop: '0.85rem', paddingTop: '0.85rem',
+                    borderTop: '1px solid var(--border)',
+                    fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.6,
+                  }}>
+                    📈 <strong style={{ color: 'var(--text-primary)' }}>추세 근거</strong> — {prediction.trendBasis}
+                  </div>
+                )}
               </>
             )}
           </div>

@@ -61,8 +61,34 @@ const HS_TYPE_CONTEXT = {
   '과학고': '과학고등학교입니다. 이공계 수요는 유지되나 지역 우수 학생의 수도권 유출이 주요 위험 요인입니다.',
 }
 
-/** 학교 폐교 위험도 예측 */
-export async function predictSchoolClosure(school) {
+// 계산된 추세 수치를 AI 프롬프트에 근거로 제공하는 문구를 만든다.
+// expectedYear는 이제 AI가 짓지 않고 이 수치로부터 결정론적으로 계산됨(lib/trend.js) —
+// AI에게는 "이 숫자에 맞춰 분석하라"는 근거로만 전달한다.
+function buildTrendContext(trend) {
+  if (!trend?.available) {
+    return '[계산된 추세 데이터] 실측 연도별 자료가 부족해 수치 기반 추세 계산이 불가능합니다. 학교 유형·지역 특성만으로 정성적으로 판단하세요.'
+  }
+  const rate = trend.avgAnnualPct != null
+    ? `연평균 ${trend.avgAnnualPct >= 0 ? '+' : ''}${trend.avgAnnualPct.toFixed(1)}%`
+    : `연평균 약 ${trend.avgAnnualAbs >= 0 ? '+' : ''}${trend.avgAnnualAbs.toFixed(1)}명`
+  let projection = '뚜렷한 증감 없이 안정적으로 유지되는 추세입니다.'
+  if (trend.direction === 'declining') {
+    if (trend.riskLineYear) projection = `이 추세가 유지되면 ${trend.riskLineYear}년경 신입생 10명 미만(위험선)에 도달할 것으로 계산됩니다.`
+    else if (trend.zeroYear) projection = `이 추세가 유지되면 ${trend.zeroYear}년경 신입생이 0명에 도달할 것으로 계산됩니다.`
+    else projection = '감소 추세이나 위험선 도달 시점은 현재 데이터로 특정하기 어렵습니다.'
+  } else if (trend.direction === 'growing') {
+    projection = '신입생 수가 증가하는 추세입니다.'
+  }
+  return `[계산된 추세 데이터 — 이 수치를 근거로 삼아 분석하세요]\n최근 ${trend.lastYear - trend.firstYear}년간(${trend.firstYear}~${trend.lastYear}년) 신입생 ${rate} 변화. ${projection}`
+}
+
+/**
+ * 학교 폐교 위험도 예측.
+ * @param {object} school
+ * @param {object} [trend] lib/trend.js의 estimateClosureTrend() 결과. expectedYear는 이 수치로
+ *   결정론적으로 계산되므로(호출 측 책임) AI에게는 요청하지 않는다 — risk/analysis/recommendation만 받는다.
+ */
+export async function predictSchoolClosure(school, trend) {
   const hasEnrollment = school.enrollment && school.enrollment.length > 0
   const enrollmentStr = hasEnrollment
     ? school.enrollment.map((e) => `${e.year}년 ${e.count}명`).join(', ')
@@ -70,6 +96,7 @@ export async function predictSchoolClosure(school) {
 
   const typeContext = HS_TYPE_CONTEXT[school.type] || ''
   const typeNote = typeContext ? `\n학교 유형 특성: ${typeContext}` : ''
+  const trendContext = buildTrendContext(trend)
 
   const userContent = hasEnrollment
     ? `다음 학교의 폐교 위험도를 분석해주세요.
@@ -79,11 +106,12 @@ export async function predictSchoolClosure(school) {
 유형: ${school.type}${typeNote}
 연도별 신입생 수: ${enrollmentStr}
 
-아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이):
+${trendContext}
+
+아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이, expectedYear는 이미 계산되어 있으므로 포함하지 마세요):
 {
-  "risk": "고위험 또는 주의 또는 안전",
-  "expectedYear": "예상 폐교 연도(예: 2028년 예상) 또는 당분간 안전",
-  "analysis": "학교 유형 특성을 반영한 2~3문장 분석 근거",
+  "risk": "고위험 또는 주의 또는 안전 (위 추세 방향과 모순되지 않게 판단)",
+  "analysis": "위 추세 수치를 자연스럽게 인용하며 학교 유형 특성을 반영한 2~3문장 분석 근거",
   "recommendation": "해당 학교 유형에 맞는 단기 권고사항 한 문장"
 }`
     : `신입생 통계 데이터 없이 아래 학교의 폐교 위험도를 지역·학교유형 기반으로 추정해주세요.
@@ -92,12 +120,13 @@ export async function predictSchoolClosure(school) {
 지역: ${school.region || school.address || '알 수 없음'}
 유형: ${school.type}${typeNote}
 
+${trendContext}
+
 한국의 지역별 학령인구 감소 트렌드, 농촌·도시 여부, 학교 유형별 특성을 종합적으로 고려해서 분석하세요.
 
-아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이):
+아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이, expectedYear는 포함하지 마세요):
 {
   "risk": "고위험 또는 주의 또는 안전",
-  "expectedYear": "예상 폐교 시기(예: 2030년 이후 주의 필요) 또는 당분간 안전",
   "analysis": "지역 특성과 학교 유형 기반 2~3문장 분석",
   "recommendation": "해당 학교 유형에 맞는 단기 권고사항 한 문장"
 }`
@@ -126,7 +155,6 @@ export async function predictSchoolClosure(school) {
   }
   return {
     risk: '분석불가',
-    expectedYear: '알 수 없음',
     analysis: stripCJK(content),
     recommendation: '',
   }
