@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
 import { Map, MapMarker, MarkerClusterer, useKakaoLoader } from 'react-kakao-maps-sdk'
 import CLOSED_SCHOOLS from '../data/closedSchools.json'
+import SchoolComments from './SchoolComments'
+import ErrorBoundary from './ErrorBoundary'
 
 // 사이트 전역 위험도 팔레트(risk-low/medium/high)와 동일한 색으로 통일:
 // 자체활용(계속 쓰이는 중) = good, 대부(남에게 넘어간 상태) = 중립, 미활용(방치) = 주의
@@ -264,6 +266,10 @@ export default function ClosedSchoolMap() {
                   </div>
                 )}
               </div>
+
+              <ErrorBoundary fallback={<div className="school-comment-empty">댓글을 불러오지 못했습니다.</div>}>
+                <SchoolComments school={selected} />
+              </ErrorBoundary>
             </div>
           ) : (
             <div className="map-detail-placeholder">

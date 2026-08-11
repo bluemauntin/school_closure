@@ -54,3 +54,38 @@ export async function likeIdea(id, currentLikes) {
   if (error) throw error
   return data
 }
+
+/** 특정 학교의 댓글 전체 조회 (최신순) */
+export async function getSchoolComments(schoolId) {
+  if (!ENABLED || !supabase) return []
+
+  const { data, error } = await supabase
+    .from('school_comments')
+    .select('*')
+    .eq('school_id', schoolId)
+    .order('created_at', { ascending: false })
+
+  if (error) throw error
+  return data || []
+}
+
+/** 학교 댓글 등록 (카카오 로그인 사용자만 호출) */
+export async function createSchoolComment({ schoolId, schoolName, content, kakaoUser }) {
+  if (!ENABLED || !supabase) throw new Error('데이터베이스 연결이 설정되지 않았습니다. Supabase 설정을 확인하세요.')
+
+  const { data, error } = await supabase
+    .from('school_comments')
+    .insert([{
+      school_id: schoolId,
+      school_name: schoolName,
+      content,
+      kakao_user_id: kakaoUser.id,
+      author_name: kakaoUser.nickname,
+      author_avatar: kakaoUser.avatar || null,
+    }])
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
