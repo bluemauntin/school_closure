@@ -23,6 +23,14 @@ const STATUS_GLYPH_SVG = {
 const STATUS_LABELS = Object.keys(STATUS_COLOR)
 const SIDO_LIST = [...new Set(CLOSED_SCHOOLS.map((s) => s.sido))].sort()
 
+// 필터와 무관하게 항상 전국 기준으로 보여주는 활용현황 비율(자체활용:대부:미활용)
+const OVERALL_STATUS_COUNTS = Object.fromEntries(
+  STATUS_LABELS.map((label) => [label, CLOSED_SCHOOLS.filter((s) => s.status === label).length])
+)
+const OVERALL_STATUS_PCT = Object.fromEntries(
+  STATUS_LABELS.map((label) => [label, Math.round((OVERALL_STATUS_COUNTS[label] / CLOSED_SCHOOLS.length) * 100)])
+)
+
 // 지도 위 점(dot) 대신 핀 모양 + 흰 배지 안에 상태별 아이콘을 그려 넣어 구분을 더 쉽게 함
 function pinMarkerImage(color, glyphSvg) {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="34" viewBox="0 0 26 34">
@@ -109,15 +117,17 @@ function recolorClusters(_target, clusters) {
 // 완전히 같은 좌표에 서로 다른 폐교가 여러 곳 있는 경우(같은 캠퍼스의 초/중/고, 본교·분교 등)
 // 마커가 완전히 겹쳐 하나만 보이고 클릭도 하나만 되므로, 살짝 원형으로 벌려 각각 클릭 가능하게 함
 function jitterOverlappingMarkers(schools) {
-  const groups = new Map()
+  // 이 파일에서 `Map`은 react-kakao-maps-sdk의 지도 컴포넌트로 import돼 있어
+  // 자바스크립트 내장 Map 클래스를 가리므로(new Map() 사용 불가), 일반 객체로 그룹핑한다
+  const groups = {}
   schools.forEach((s) => {
     const key = `${s.lat},${s.lng}`
-    if (!groups.has(key)) groups.set(key, [])
-    groups.get(key).push(s)
+    if (!groups[key]) groups[key] = []
+    groups[key].push(s)
   })
   const OFFSET_DEG = 0.00018 // 약 20m
   const result = []
-  groups.forEach((group) => {
+  Object.values(groups).forEach((group) => {
     group.forEach((s, i) => {
       if (group.length === 1) {
         result.push({ ...s, markerLat: s.lat, markerLng: s.lng })
