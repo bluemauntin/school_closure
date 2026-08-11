@@ -1,6 +1,7 @@
 import Hero from './components/Hero'
 import StatsDashboard from './components/StatsDashboard'
 import ClosedSchoolMap from './components/ClosedSchoolMap'
+import ErrorBoundary from './components/ErrorBoundary'
 import SchoolPredictor from './components/SchoolPredictor'
 import HousingSchoolCorrelation from './components/HousingSchoolCorrelation'
 import IdeaBoard from './components/IdeaBoard'
@@ -49,7 +50,9 @@ function App() {
         </section>
 
         <section id="map">
-          <ClosedSchoolMap />
+          <ErrorBoundary>
+            <ClosedSchoolMap />
+          </ErrorBoundary>
         </section>
 
         <section id="predictor">

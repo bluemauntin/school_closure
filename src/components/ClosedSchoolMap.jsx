@@ -36,18 +36,56 @@ const MARKER_IMAGES = Object.fromEntries(
   STATUS_LABELS.map((s) => [s, pinMarkerImage(STATUS_COLOR[s], STATUS_GLYPH_SVG[s])])
 )
 
-// 클러스터는 여러 상태가 섞여 있으므로 상태색이 아닌 브랜드색(주황)의 중립 배지로 표시
+// 클러스터 배지 기본 스타일(브랜드 주황) — recolorClusters에서 다수 상태색으로 덮어씀
 const CLUSTER_STYLES = [
-  { size: 40, opacity: 0.85, fontSize: 13, fontWeight: 700 },
-  { size: 52, opacity: 0.9, fontSize: 14, fontWeight: 700 },
-  { size: 64, opacity: 0.95, fontSize: 15, fontWeight: 800 },
-].map(({ size, opacity, fontSize, fontWeight }) => ({
+  { size: 40, fontSize: 13, fontWeight: 700 },
+  { size: 52, fontSize: 14, fontWeight: 700 },
+  { size: 64, fontSize: 15, fontWeight: 800 },
+].map(({ size, fontSize, fontWeight }) => ({
   width: `${size}px`, height: `${size}px`, lineHeight: `${size}px`,
-  background: `rgba(255,107,53,${opacity})`,
+  background: 'rgba(255,107,53,0.9)',
   border: '3px solid rgba(8,13,26,0.9)', borderRadius: '50%',
   color: '#fff', textAlign: 'center', fontWeight, fontSize: `${fontSize}px`,
   boxShadow: '0 2px 10px rgba(0,0,0,0.35)',
 }))
+
+// 동률일 때는 더 눈에 띄어야 할 상태(미활용 > 대부 > 자체활용) 우선
+const STATUS_TIEBREAK = ['미활용', '대부', '자체활용']
+
+function dominantStatus(counts) {
+  let best = null
+  let bestCount = 0
+  for (const status of STATUS_TIEBREAK) {
+    const count = counts[status] || 0
+    if (count > bestCount) { best = status; bestCount = count }
+  }
+  return best
+}
+
+// 카카오 지도 내부(비공식) DOM을 직접 건드리는 코드라 실패해도 지도 전체가 죽지 않도록
+// try/catch로 감싸고, React의 레이아웃 이펙트 호출 스택 밖(rAF)에서 실행한다.
+function recolorClusters(_target, clusters) {
+  if (!Array.isArray(clusters)) return
+  requestAnimationFrame(() => {
+    clusters.forEach((cluster) => {
+      try {
+        const counts = {}
+        cluster.getMarkers().forEach((marker) => {
+          const status = marker.__status
+          if (status) counts[status] = (counts[status] || 0) + 1
+        })
+        const dominant = dominantStatus(counts)
+        if (!dominant) return
+        const content = cluster.getClusterMarker()?.getContent()
+        if (content && typeof content !== 'string') {
+          content.style.background = STATUS_COLOR[dominant]
+        }
+      } catch (err) {
+        console.error('[ClosedSchoolMap] cluster recolor skipped:', err)
+      }
+    })
+  })
+}
 
 export default function ClosedSchoolMap() {
   const [loading, error] = useKakaoLoader({
@@ -118,7 +156,11 @@ export default function ClosedSchoolMap() {
           ) : (
             <Map center={{ lat: 36.2, lng: 127.9 }} level={12} style={{ width: '100%', height: '520px' }}>
               {!loading && (
-                <MarkerClusterer averageCenter minLevel={6} gridSize={70} styles={CLUSTER_STYLES} calculator={[10, 100]}>
+                <MarkerClusterer
+                  averageCenter minLevel={6} gridSize={70}
+                  styles={CLUSTER_STYLES} calculator={[10, 100]}
+                  onClustered={recolorClusters}
+                >
                   {filtered.map((s) => (
                     <MapMarker
                       key={s.id}
@@ -126,6 +168,7 @@ export default function ClosedSchoolMap() {
                       image={MARKER_IMAGES[s.status]}
                       title={s.name}
                       onClick={() => setSelected(s)}
+                      onCreate={(marker) => { marker.__status = s.status }}
                     />
                   ))}
                 </MarkerClusterer>
