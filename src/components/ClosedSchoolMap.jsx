@@ -106,6 +106,34 @@ function recolorClusters(_target, clusters) {
   })
 }
 
+// 완전히 같은 좌표에 서로 다른 폐교가 여러 곳 있는 경우(같은 캠퍼스의 초/중/고, 본교·분교 등)
+// 마커가 완전히 겹쳐 하나만 보이고 클릭도 하나만 되므로, 살짝 원형으로 벌려 각각 클릭 가능하게 함
+function jitterOverlappingMarkers(schools) {
+  const groups = new Map()
+  schools.forEach((s) => {
+    const key = `${s.lat},${s.lng}`
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key).push(s)
+  })
+  const OFFSET_DEG = 0.00018 // 약 20m
+  const result = []
+  groups.forEach((group) => {
+    group.forEach((s, i) => {
+      if (group.length === 1) {
+        result.push({ ...s, markerLat: s.lat, markerLng: s.lng })
+        return
+      }
+      const angle = (2 * Math.PI * i) / group.length
+      result.push({
+        ...s,
+        markerLat: s.lat + OFFSET_DEG * Math.cos(angle),
+        markerLng: s.lng + OFFSET_DEG * Math.sin(angle),
+      })
+    })
+  })
+  return result
+}
+
 export default function ClosedSchoolMap() {
   const [loading, error] = useKakaoLoader({
     appkey: import.meta.env.VITE_KAKAO_JS_KEY,
@@ -119,6 +147,7 @@ export default function ClosedSchoolMap() {
     () => CLOSED_SCHOOLS.filter((s) => (sido === '전체' || s.sido === sido) && statusFilter.has(s.status)),
     [sido, statusFilter]
   )
+  const markers = useMemo(() => jitterOverlappingMarkers(filtered), [filtered])
 
   const toggleStatus = (label) => {
     setStatusFilter((prev) => {
@@ -184,10 +213,10 @@ export default function ClosedSchoolMap() {
                   styles={CLUSTER_STYLES} calculator={[10, 100]}
                   onClustered={recolorClusters}
                 >
-                  {filtered.map((s) => (
+                  {markers.map((s) => (
                     <MapMarker
                       key={s.id}
-                      position={{ lat: s.lat, lng: s.lng }}
+                      position={{ lat: s.markerLat, lng: s.markerLng }}
                       image={MARKER_IMAGES[s.status]}
                       title={s.name}
                       onClick={() => setSelected(s)}
