@@ -62,6 +62,24 @@ function dominantStatus(counts) {
   return best
 }
 
+// 대한민국 영역을 벗어난 빈 타일(바다 밖 등)이 보이지 않도록 이동 가능 범위를 제한
+const KOREA_BOUNDS = { minLat: 32.9, maxLat: 39.0, minLng: 124.5, maxLng: 132.0 }
+
+function clampMapCenter(map) {
+  try {
+    const center = map.getCenter()
+    const lat = center.getLat()
+    const lng = center.getLng()
+    const clampedLat = Math.min(Math.max(lat, KOREA_BOUNDS.minLat), KOREA_BOUNDS.maxLat)
+    const clampedLng = Math.min(Math.max(lng, KOREA_BOUNDS.minLng), KOREA_BOUNDS.maxLng)
+    if (clampedLat !== lat || clampedLng !== lng) {
+      map.panTo(new kakao.maps.LatLng(clampedLat, clampedLng))
+    }
+  } catch (err) {
+    console.error('[ClosedSchoolMap] map bounds clamp failed:', err)
+  }
+}
+
 // 카카오 지도 내부(비공식) DOM을 직접 건드리는 코드라 실패해도 지도 전체가 죽지 않도록
 // try/catch로 감싸고, React의 레이아웃 이펙트 호출 스택 밖(rAF)에서 실행한다.
 function recolorClusters(_target, clusters) {
@@ -154,7 +172,11 @@ export default function ClosedSchoolMap() {
           {error ? (
             <div className="map-error">지도를 불러오지 못했습니다. 카카오맵 키 설정을 확인해 주세요.</div>
           ) : (
-            <Map center={{ lat: 36.2, lng: 127.9 }} level={12} style={{ width: '100%', height: '520px' }}>
+            <Map
+              center={{ lat: 36.2, lng: 127.9 }} level={12} maxLevel={13}
+              style={{ width: '100%', height: '520px' }}
+              onIdle={clampMapCenter}
+            >
               {!loading && (
                 <MarkerClusterer
                   averageCenter minLevel={6} gridSize={70}
