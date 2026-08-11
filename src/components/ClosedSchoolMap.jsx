@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Map, MapMarker, MarkerClusterer, useKakaoLoader } from 'react-kakao-maps-sdk'
 import CLOSED_SCHOOLS from '../data/closedSchools.json'
 
@@ -36,31 +36,18 @@ const MARKER_IMAGES = Object.fromEntries(
   STATUS_LABELS.map((s) => [s, pinMarkerImage(STATUS_COLOR[s], STATUS_GLYPH_SVG[s])])
 )
 
-// 클러스터 배지 기본 스타일(브랜드 주황) — onClustered에서 다수 상태색으로 덮어씀
+// 클러스터는 여러 상태가 섞여 있으므로 상태색이 아닌 브랜드색(주황)의 중립 배지로 표시
 const CLUSTER_STYLES = [
-  { size: 40, fontSize: 13, fontWeight: 700 },
-  { size: 52, fontSize: 14, fontWeight: 700 },
-  { size: 64, fontSize: 15, fontWeight: 800 },
-].map(({ size, fontSize, fontWeight }) => ({
+  { size: 40, opacity: 0.85, fontSize: 13, fontWeight: 700 },
+  { size: 52, opacity: 0.9, fontSize: 14, fontWeight: 700 },
+  { size: 64, opacity: 0.95, fontSize: 15, fontWeight: 800 },
+].map(({ size, opacity, fontSize, fontWeight }) => ({
   width: `${size}px`, height: `${size}px`, lineHeight: `${size}px`,
-  background: 'rgba(255,107,53,0.9)',
+  background: `rgba(255,107,53,${opacity})`,
   border: '3px solid rgba(8,13,26,0.9)', borderRadius: '50%',
   color: '#fff', textAlign: 'center', fontWeight, fontSize: `${fontSize}px`,
   boxShadow: '0 2px 10px rgba(0,0,0,0.35)',
 }))
-
-// 동률일 때는 더 눈에 띄어야 할 상태(미활용 > 대부 > 자체활용) 우선
-const STATUS_TIEBREAK = ['미활용', '대부', '자체활용']
-
-function dominantStatus(counts) {
-  let best = null
-  let bestCount = 0
-  for (const status of STATUS_TIEBREAK) {
-    const count = counts[status] || 0
-    if (count > bestCount) { best = status; bestCount = count }
-  }
-  return best
-}
 
 export default function ClosedSchoolMap() {
   const [loading, error] = useKakaoLoader({
@@ -70,28 +57,11 @@ export default function ClosedSchoolMap() {
   const [sido, setSido] = useState('전체')
   const [statusFilter, setStatusFilter] = useState(new Set(STATUS_LABELS))
   const [selected, setSelected] = useState(null)
-  const markerStatusRef = useRef(new Map())
 
   const filtered = useMemo(
     () => CLOSED_SCHOOLS.filter((s) => (sido === '전체' || s.sido === sido) && statusFilter.has(s.status)),
     [sido, statusFilter]
   )
-
-  const recolorClusters = (_target, clusters) => {
-    clusters.forEach((cluster) => {
-      const counts = {}
-      cluster.getMarkers().forEach((marker) => {
-        const status = markerStatusRef.current.get(marker)
-        if (status) counts[status] = (counts[status] || 0) + 1
-      })
-      const dominant = dominantStatus(counts)
-      if (!dominant) return
-      const content = cluster.getClusterMarker().getContent()
-      if (content && typeof content !== 'string') {
-        content.style.background = STATUS_COLOR[dominant]
-      }
-    })
-  }
 
   const toggleStatus = (label) => {
     setStatusFilter((prev) => {
@@ -148,11 +118,7 @@ export default function ClosedSchoolMap() {
           ) : (
             <Map center={{ lat: 36.2, lng: 127.9 }} level={12} style={{ width: '100%', height: '520px' }}>
               {!loading && (
-                <MarkerClusterer
-                  averageCenter minLevel={6} gridSize={70}
-                  styles={CLUSTER_STYLES} calculator={[10, 100]}
-                  onClustered={recolorClusters}
-                >
+                <MarkerClusterer averageCenter minLevel={6} gridSize={70} styles={CLUSTER_STYLES} calculator={[10, 100]}>
                   {filtered.map((s) => (
                     <MapMarker
                       key={s.id}
@@ -160,7 +126,6 @@ export default function ClosedSchoolMap() {
                       image={MARKER_IMAGES[s.status]}
                       title={s.name}
                       onClick={() => setSelected(s)}
-                      onCreate={(marker) => markerStatusRef.current.set(marker, s.status)}
                     />
                   ))}
                 </MarkerClusterer>
