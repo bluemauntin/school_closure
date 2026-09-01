@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getSchoolComments, createSchoolComment } from '../lib/supabase'
-import { getStoredKakaoUser, loginWithKakao, logoutKakao } from '../lib/kakaoAuth'
+import { getStoredKakaoUser, loginWithKakao, logoutKakao, getFreshKakaoAccessToken } from '../lib/kakaoAuth'
 
 function timeAgo(dateStr) {
   const diff = (Date.now() - new Date(dateStr).getTime()) / 1000
@@ -54,15 +54,20 @@ export default function SchoolComments({ school }) {
     if (!content.trim()) { setError('댓글 내용을 입력해주세요.'); return }
     setSubmitting(true)
     try {
+      const accessToken = await getFreshKakaoAccessToken()
       const created = await createSchoolComment({
         schoolId: school.id,
         schoolName: school.name,
         content: content.trim(),
-        kakaoUser,
+        accessToken,
       })
       setComments((prev) => [created, ...prev])
       setContent('')
     } catch (e) {
+      if (e.message?.includes('다시 로그인')) {
+        setKakaoUser(null)
+        logoutKakao()
+      }
       setError(`등록 실패: ${e.message}`)
     } finally {
       setSubmitting(false)

@@ -79,3 +79,29 @@ export async function loginWithKakao() {
   storeKakaoUser(user)
   return user
 }
+
+/**
+ * 서버 검증용 access token을 반환한다.
+ * SDK가 메모리에 들고 있는 토큰이 있으면 그대로 쓰고(같은 페이지 세션 내 재사용),
+ * 새로고침 등으로 SDK 세션이 비어 있으면 로그인 팝업을 다시 띄워 유효한 토큰을 받는다
+ * (이미 동의한 사용자는 보통 팝업 없이 즉시 통과됨).
+ * 이 토큰은 로컬 저장소에 저장하지 않고, 댓글 등록 시 서버 검증 요청에만 사용한다.
+ */
+export async function getFreshKakaoAccessToken() {
+  const Kakao = await loadKakaoSdk()
+
+  const existing = Kakao.Auth.getAccessToken()
+  if (existing) return existing
+
+  await new Promise((resolve, reject) => {
+    Kakao.Auth.login({
+      scope: 'profile_nickname,profile_image',
+      success: resolve,
+      fail: (err) => reject(new Error(err?.error_description || '카카오 로그인이 만료되었습니다. 다시 로그인해주세요.')),
+    })
+  })
+
+  const token = Kakao.Auth.getAccessToken()
+  if (!token) throw new Error('카카오 로그인 토큰을 가져오지 못했습니다.')
+  return token
+}

@@ -30,3 +30,8 @@
 
 ## 🗄 데이터베이스 설정
 - Supabase 프로젝트의 SQL Editor에서 `supabase_setup.sql` 파일의 쿼리를 실행하여 테이블을 생성해야 합니다.
+
+## 💬 학교 댓글 (카카오 로그인) 서버 검증
+- 댓글 작성은 `/api/verify-kakao-comment` (Vercel 서버리스 함수)를 거칩니다. 이 함수가 클라이언트가 보낸 카카오 access token을 `kapi.kakao.com`에 직접 검증한 뒤, `service_role` 키로만 Supabase에 insert합니다.
+- 이 함수가 동작하려면 `SUPABASE_SERVICE_ROLE_KEY` 환경변수가 필요합니다(`.env.example` 참고). 로컬은 `.env`, 배포는 Vercel 프로젝트 환경변수에 추가하세요. **`VITE_` 접두사를 붙이면 안 됩니다** — 그러면 클라이언트 번들에 노출됩니다.
+- `npm run dev`(순수 Vite dev 서버)는 `/api` 폴더를 실행하지 않습니다. 댓글 등록을 로컬에서 테스트하려면 `vercel dev`로 실행하거나 Vercel에 배포해서 확인하세요.
