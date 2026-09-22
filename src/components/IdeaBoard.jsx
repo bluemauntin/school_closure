@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getIdeas, createIdea, likeIdea } from '../lib/supabase'
+import { getIdeas, createIdea, likeIdea, deleteIdea } from '../lib/supabase'
 import { getFreshKakaoAccessToken } from '../lib/kakaoAuth'
 import { useKakaoAuth } from '../lib/KakaoAuthContext'
 
@@ -116,6 +116,23 @@ export default function IdeaBoard() {
       const newLiked = [...likedIds, idea.id]
       setLikedIds(newLiked)
       localStorage.setItem('liked_ideas', JSON.stringify(newLiked))
+    }
+  }
+
+  async function handleDelete(idea) {
+    if (!confirm('이 아이디어를 삭제할까요?')) return
+    setFormError('')
+    try {
+      const accessToken = await getFreshKakaoAccessToken()
+      if (!accessToken) {
+        logout()
+        setFormError('카카오 로그인이 만료되었습니다. 다시 로그인해주세요.')
+        return
+      }
+      await deleteIdea({ id: idea.id, accessToken })
+      setIdeas(prev => prev.filter(i => i.id !== idea.id))
+    } catch (e) {
+      setFormError(`삭제 실패: ${e.message}`)
     }
   }
 
@@ -363,6 +380,16 @@ export default function IdeaBoard() {
                 <div className="idea-footer">
                   <div className="idea-author">
                     👤 {idea.author_name || '익명'} · {timeAgo(idea.created_at)}
+                    {kakaoUser && idea.kakao_user_id === kakaoUser.id && (
+                      <button
+                        type="button"
+                        className="school-comment-logout"
+                        onClick={() => handleDelete(idea)}
+                        style={{ marginLeft: '0.5rem' }}
+                      >
+                        삭제
+                      </button>
+                    )}
                   </div>
                   <button
                     className={`like-btn ${likedIds.includes(idea.id) ? 'liked' : ''}`}

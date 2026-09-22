@@ -49,6 +49,11 @@ export async function createIdea({ title, content, category, accessToken }) {
   return data
 }
 
+/** 본인이 작성한 아이디어 삭제 (서버가 access token으로 작성자 본인 여부를 검증) */
+export async function deleteIdea({ id, accessToken }) {
+  return deleteKakaoPost({ table: 'ideas', id, accessToken })
+}
+
 /** 좋아요 +1 */
 export async function likeIdea(id, currentLikes) {
   if (!ENABLED || !supabase) throw new Error('데이터베이스 연결이 설정되지 않았습니다.')
@@ -98,5 +103,29 @@ export async function createSchoolComment({ schoolId, schoolName, content, acces
   }
 
   if (!res.ok) throw new Error(data?.error || '댓글 등록에 실패했습니다.')
+  return data
+}
+
+/** 본인이 작성한 학교 댓글 삭제 (서버가 access token으로 작성자 본인 여부를 검증) */
+export async function deleteSchoolComment({ id, accessToken }) {
+  return deleteKakaoPost({ table: 'school_comments', id, accessToken })
+}
+
+/** /api/delete-kakao-post 공용 삭제 요청 — 학교 댓글/아이디어가 함께 사용 */
+async function deleteKakaoPost({ table, id, accessToken }) {
+  const res = await fetch('/api/delete-kakao-post', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ table, id, accessToken }),
+  })
+
+  let data
+  try {
+    data = await res.json()
+  } catch {
+    throw new Error('서버 응답을 처리하지 못했습니다.')
+  }
+
+  if (!res.ok) throw new Error(data?.error || '삭제에 실패했습니다.')
   return data
 }

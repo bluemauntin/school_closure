@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getSchoolComments, createSchoolComment } from '../lib/supabase'
+import { getSchoolComments, createSchoolComment, deleteSchoolComment } from '../lib/supabase'
 import { getFreshKakaoAccessToken } from '../lib/kakaoAuth'
 import { useKakaoAuth } from '../lib/KakaoAuthContext'
 
@@ -79,6 +79,23 @@ export default function SchoolComments({ school }) {
     }
   }
 
+  async function handleDelete(commentId) {
+    if (!confirm('이 댓글을 삭제할까요?')) return
+    setError('')
+    try {
+      const accessToken = await getFreshKakaoAccessToken()
+      if (!accessToken) {
+        logout()
+        setError('카카오 로그인이 만료되었습니다. 다시 로그인해주세요.')
+        return
+      }
+      await deleteSchoolComment({ id: commentId, accessToken })
+      setComments((prev) => prev.filter((c) => c.id !== commentId))
+    } catch (e) {
+      setError(`삭제 실패: ${e.message}`)
+    }
+  }
+
   return (
     <div className="school-comments">
       <div className="school-comments-title">💬 학교 댓글 {comments.length > 0 && `(${comments.length})`}</div>
@@ -132,6 +149,15 @@ export default function SchoolComments({ school }) {
                 <div className="school-comment-meta">
                   <strong>{c.author_name}</strong>
                   <span>{timeAgo(c.created_at)}</span>
+                  {kakaoUser && c.kakao_user_id === kakaoUser.id && (
+                    <button
+                      type="button"
+                      className="school-comment-logout"
+                      onClick={() => handleDelete(c.id)}
+                    >
+                      삭제
+                    </button>
+                  )}
                 </div>
                 <div className="school-comment-content">{c.content}</div>
               </div>
