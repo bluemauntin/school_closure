@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getSchoolComments, createSchoolComment } from '../lib/supabase'
-import { getStoredKakaoUser, loginWithKakao, logoutKakao, getFreshKakaoAccessToken } from '../lib/kakaoAuth'
+import { getStoredKakaoUser, startKakaoLogin, logoutKakao, getFreshKakaoAccessToken } from '../lib/kakaoAuth'
 
 function timeAgo(dateStr) {
   const diff = (Date.now() - new Date(dateStr).getTime()) / 1000
@@ -34,11 +34,11 @@ export default function SchoolComments({ school }) {
     setLoginLoading(true)
     setError('')
     try {
-      const user = await loginWithKakao()
-      setKakaoUser(user)
+      // 성공하면 카카오 로그인 화면으로 페이지 전체가 이동한다(팝업 아님).
+      // school.id를 남겨 두면 로그인 후 이 학교가 다시 선택된 상태로 돌아온다.
+      await startKakaoLogin({ schoolId: school.id })
     } catch (e) {
       setError(e.message || '카카오 로그인에 실패했습니다.')
-    } finally {
       setLoginLoading(false)
     }
   }
@@ -55,6 +55,14 @@ export default function SchoolComments({ school }) {
     setSubmitting(true)
     try {
       const accessToken = await getFreshKakaoAccessToken()
+      if (!accessToken) {
+        // 리다이렉트 방식이라 여기서 자동으로 재로그인을 띄울 수 없다 —
+        // 로그인 폼으로 되돌려서 사용자가 직접 다시 로그인하게 한다.
+        logoutKakao()
+        setKakaoUser(null)
+        setError('카카오 로그인이 만료되었습니다. 다시 로그인해주세요.')
+        return
+      }
       const created = await createSchoolComment({
         schoolId: school.id,
         schoolName: school.name,
@@ -64,10 +72,6 @@ export default function SchoolComments({ school }) {
       setComments((prev) => [created, ...prev])
       setContent('')
     } catch (e) {
-      if (e.message?.includes('다시 로그인')) {
-        setKakaoUser(null)
-        logoutKakao()
-      }
       setError(`등록 실패: ${e.message}`)
     } finally {
       setSubmitting(false)

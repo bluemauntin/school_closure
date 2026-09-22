@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Map, MapMarker, MarkerClusterer, useKakaoLoader } from 'react-kakao-maps-sdk'
 import CLOSED_SCHOOLS from '../data/closedSchools.json'
 import SchoolComments from './SchoolComments'
 import ErrorBoundary from './ErrorBoundary'
+import { completeKakaoLoginFromUrl } from '../lib/kakaoAuth'
 
 // 사이트 전역 위험도 팔레트(risk-low/medium/high)와 동일한 색으로 통일:
 // 자체활용(계속 쓰이는 중) = good, 대부(남에게 넘어간 상태) = 중립, 미활용(방치) = 주의
@@ -154,6 +155,19 @@ export default function ClosedSchoolMap() {
   const [sido, setSido] = useState('전체')
   const [statusFilter, setStatusFilter] = useState(new Set(STATUS_LABELS))
   const [selected, setSelected] = useState(null)
+
+  // 카카오 로그인은 이제 전체 페이지 리다이렉트 방식이라, 로그인 후 이 페이지로
+  // 돌아오면 어떤 학교를 보고 있었는지 잃어버린다 — 최초 마운트 시 한 번 콜백을
+  // 처리하고, 로그인 시작 시 저장해 둔 school.id로 그 학교를 다시 선택해 준다.
+  useEffect(() => {
+    completeKakaoLoginFromUrl()
+      .then(({ pending }) => {
+        if (!pending?.schoolId) return
+        const school = CLOSED_SCHOOLS.find((s) => s.id === pending.schoolId)
+        if (school) setSelected(school)
+      })
+      .catch((err) => console.error('[ClosedSchoolMap] kakao login callback failed:', err))
+  }, [])
 
   const filtered = useMemo(
     () => CLOSED_SCHOOLS.filter((s) => (sido === '전체' || s.sido === sido) && statusFilter.has(s.status)),
