@@ -77,7 +77,8 @@ function App() {
           </p>
           <div className="footer-divider" />
           <p className="footer-sources">
-            출처: 교육부 폐교재산 현황 · 지방교육재정알리미(eduinfo.go.kr) · 통계청 학령인구 추계
+            출처: 공공데이터포털 전국폐교재산기본정보표준데이터 · 학교알리미(schoolinfo.go.kr) ·
+            NEIS 교육정보 개방포털(open.neis.go.kr) · 통계청 학령인구 추계
           </p>
         </div>
       </footer>

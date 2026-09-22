@@ -110,9 +110,14 @@ export default function SchoolComments({ school, loginError }) {
           </button>
         </form>
       ) : (
-        <button className="kakao-login-btn" onClick={handleLogin} disabled={loginLoading}>
-          {loginLoading ? '연결 중…' : '💬 카카오 로그인하고 댓글쓰기'}
-        </button>
+        <>
+          <button className="kakao-login-btn" onClick={handleLogin} disabled={loginLoading}>
+            {loginLoading ? '연결 중…' : '💬 카카오 로그인하고 댓글쓰기'}
+          </button>
+          <p className="school-comment-privacy-notice">
+            로그인 시 카카오 닉네임과 프로필 사진이 댓글과 함께 공개적으로 표시됩니다.
+          </p>
+        </>
       )}
 
       {error && <div className="school-comment-error">⚠ {error}</div>}
