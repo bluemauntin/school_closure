@@ -5,9 +5,11 @@ import ErrorBoundary from './components/ErrorBoundary'
 import SchoolPredictor from './components/SchoolPredictor'
 import HousingSchoolCorrelation from './components/HousingSchoolCorrelation'
 import IdeaBoard from './components/IdeaBoard'
+import { KakaoAuthProvider } from './lib/KakaoAuthContext'
 
 function App() {
   return (
+    <KakaoAuthProvider>
     <div>
       <header>
         <div className="award-banner">
@@ -83,6 +85,7 @@ function App() {
         </div>
       </footer>
     </div>
+    </KakaoAuthProvider>
   )
 }
 

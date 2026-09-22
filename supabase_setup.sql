@@ -81,3 +81,23 @@ DROP POLICY IF EXISTS "Anyone can insert school comments" ON public.school_comme
 --  함수를 배포하려면 Vercel 프로젝트 환경변수에 SUPABASE_SERVICE_ROLE_KEY를
 --  추가해야 합니다 — .env.example 참고)
 -- =====================================================
+
+
+-- =====================================================
+-- 아이디어 보드 — 카카오 로그인 연동으로 전환
+-- =====================================================
+
+-- 11. 작성자를 카카오 계정과 연결하기 위한 컬럼 추가 (기존 익명 행은 NULL로 유지)
+ALTER TABLE public.ideas ADD COLUMN IF NOT EXISTS kakao_user_id text;
+
+-- 12. 클라이언트(anon 키)가 직접 insert하던 정책을 제거합니다. 이제 작성은
+--     반드시 /api/verify-kakao-idea (Vercel 서버리스 함수)를 거쳐야 하며,
+--     그 함수가 카카오 access token을 kapi.kakao.com에 직접 검증한 뒤
+--     service_role 키로만 insert합니다 — school_comments와 동일한 패턴.
+--     "Anyone can update likes" 정책은 그대로 둡니다(하트는 로그인 없이 가능).
+DROP POLICY IF EXISTS "Anyone can insert ideas" ON public.ideas;
+
+-- =====================================================
+-- 완료! 이제 아이디어 제안도 카카오 로그인이 필요합니다.
+-- (SUPABASE_SERVICE_ROLE_KEY, KAKAO_REST_API_KEY는 학교 댓글 기능과 공유합니다)
+-- =====================================================

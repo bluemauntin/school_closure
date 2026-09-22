@@ -26,17 +26,26 @@ export async function getIdeas() {
   return data || []
 }
 
-/** 아이디어 등록 */
-export async function createIdea({ title, content, category, author_name }) {
-  if (!ENABLED || !supabase) throw new Error('데이터베이스 연결이 설정되지 않았습니다. Supabase 설정을 확인하세요.')
+/**
+ * 아이디어 등록. 카카오 access token은 서버(/api/verify-kakao-idea)에서 직접
+ * 검증되며, 작성자 닉네임도 서버가 그 검증된 프로필에서 가져와 저장한다
+ * (클라이언트가 보낸 값은 신뢰하지 않음) — school_comments와 동일한 패턴.
+ */
+export async function createIdea({ title, content, category, accessToken }) {
+  const res = await fetch('/api/verify-kakao-idea', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, content, category, accessToken }),
+  })
 
-  const { data, error } = await supabase
-    .from('ideas')
-    .insert([{ title, content, category, author_name: author_name || '익명' }])
-    .select()
-    .single()
+  let data
+  try {
+    data = await res.json()
+  } catch {
+    throw new Error('서버 응답을 처리하지 못했습니다.')
+  }
 
-  if (error) throw error
+  if (!res.ok) throw new Error(data?.error || '아이디어 등록에 실패했습니다.')
   return data
 }
 

@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { getIdeas, createIdea, likeIdea } from '../lib/supabase'
+import { getFreshKakaoAccessToken } from '../lib/kakaoAuth'
+import { useKakaoAuth } from '../lib/KakaoAuthContext'
 
 const CATEGORIES = ['전체', '문화·예술', '교육·도서관', '주거·공동체', '농업·생태', '창업·경제', '기타']
 const CAT_EMOJI = { '문화·예술': '🎨', '교육·도서관': '📚', '주거·공동체': '🏡', '농업·생태': '🌱', '창업·경제': '💡', '기타': '✨' }
@@ -31,6 +33,7 @@ function sortIdeas(ideas, sortKey) {
 }
 
 export default function IdeaBoard() {
+  const { kakaoUser, loginError, login, logout } = useKakaoAuth()
   const [ideas, setIdeas] = useState(SAMPLE_IDEAS)
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('전체')
@@ -40,10 +43,16 @@ export default function IdeaBoard() {
   })
 
   // Form state
-  const [form, setForm] = useState({ title: '', content: '', category: '문화·예술', author_name: '' })
+  const [form, setForm] = useState({ title: '', content: '', category: '문화·예술' })
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
   const [formError, setFormError] = useState('')
+  const [loginLoading, setLoginLoading] = useState(false)
+
+  // 로그인 리다이렉트 콜백(KakaoAuthProvider)에서 발생한 에러를 폼 에러 영역에 띄운다.
+  useEffect(() => {
+    if (loginError) setFormError(loginError)
+  }, [loginError])
 
   useEffect(() => {
     getIdeas()
@@ -54,6 +63,18 @@ export default function IdeaBoard() {
 
   const handleField = e => setForm(f => ({ ...f, [e.target.name]: e.target.value }))
 
+  async function handleLogin() {
+    setLoginLoading(true)
+    setFormError('')
+    try {
+      // 성공하면 카카오 로그인 화면으로 페이지 전체가 이동한다(팝업 아님).
+      await login()
+    } catch (e) {
+      setFormError(e.message || '카카오 로그인에 실패했습니다.')
+      setLoginLoading(false)
+    }
+  }
+
   async function handleSubmit(e) {
     e.preventDefault()
     setFormError('')
@@ -61,13 +82,21 @@ export default function IdeaBoard() {
     if (!form.content.trim()) { setFormError('내용을 입력해주세요.'); return }
     setSubmitting(true)
     try {
-      const created = await createIdea(form)
+      const accessToken = await getFreshKakaoAccessToken()
+      if (!accessToken) {
+        // 리다이렉트 방식이라 여기서 자동으로 재로그인을 띄울 수 없다 —
+        // 로그인 폼으로 되돌려서 사용자가 직접 다시 로그인하게 한다.
+        logout()
+        setFormError('카카오 로그인이 만료되었습니다. 다시 로그인해주세요.')
+        return
+      }
+      const created = await createIdea({ ...form, accessToken })
       setIdeas(prev => [created, ...prev])
-      setForm({ title: '', content: '', category: '문화·예술', author_name: '' })
+      setForm({ title: '', content: '', category: '문화·예술' })
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3000)
     } catch (err) {
-      setFormError(`저장 실패: ${err.message}. Supabase 설정을 확인하세요.`)
+      setFormError(`저장 실패: ${err.message}`)
     } finally {
       setSubmitting(false)
     }
@@ -105,7 +134,7 @@ export default function IdeaBoard() {
         <h2 className="section-title">폐교 부지, 어떻게 쓸까요?</h2>
         <p className="section-desc">
           전국에 방치된 367곳의 폐교 부지를 어떻게 활용하면 좋을지
-          아이디어를 자유롭게 제안해주세요. 회원가입 없이 바로 작성할 수 있어요.
+          아이디어를 자유롭게 제안해주세요. 카카오 로그인 후 작성할 수 있어요.
         </p>
       </div>
 
@@ -153,7 +182,31 @@ export default function IdeaBoard() {
       {/* ── 제출 폼 ── */}
       <div className="idea-form-card">
         <div className="idea-form-title">✏️ 아이디어 제안하기</div>
+
+        {!kakaoUser ? (
+          <>
+            <button className="kakao-login-btn" onClick={handleLogin} disabled={loginLoading}>
+              {loginLoading ? '연결 중…' : '💬 카카오 로그인하고 아이디어 제안하기'}
+            </button>
+            <p className="school-comment-privacy-notice">
+              로그인 시 카카오 닉네임이 아이디어와 함께 공개적으로 표시됩니다.
+            </p>
+            {formError && (
+              <div style={{ color: 'var(--accent-red)', fontSize: '0.83rem', marginTop: '0.75rem' }}>
+                ⚠ {formError}
+              </div>
+            )}
+          </>
+        ) : (
         <form onSubmit={handleSubmit}>
+          <div className="school-comment-whoami" style={{ marginBottom: '0.9rem' }}>
+            {kakaoUser.avatar
+              ? <img src={kakaoUser.avatar} alt="" className="school-comment-avatar" />
+              : <span className="school-comment-avatar school-comment-avatar-fallback">👤</span>}
+            <span>{kakaoUser.nickname}님으로 제안 중</span>
+            <button type="button" className="school-comment-logout" onClick={logout}>로그아웃</button>
+          </div>
+
           <div className="form-row">
             <div className="form-group">
               <label className="form-label" htmlFor="idea-title">제목 *</label>
@@ -195,20 +248,6 @@ export default function IdeaBoard() {
             />
           </div>
 
-          <div className="form-group">
-            <label className="form-label" htmlFor="idea-author">작성자 (선택)</label>
-            <input
-              id="idea-author"
-              name="author_name"
-              className="form-input"
-              type="text"
-              placeholder="닉네임 또는 지역명 (비워두면 '익명'으로 표시)"
-              value={form.author_name}
-              onChange={handleField}
-              maxLength={20}
-            />
-          </div>
-
           {formError && (
             <div style={{ color: 'var(--accent-red)', fontSize: '0.83rem', marginBottom: '0.75rem' }}>
               ⚠ {formError}
@@ -224,6 +263,7 @@ export default function IdeaBoard() {
             )}
           </div>
         </form>
+        )}
       </div>
 
       {/* ── 필터 + 정렬 컨트롤 ── */}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getSchoolComments, createSchoolComment } from '../lib/supabase'
-import { getStoredKakaoUser, startKakaoLogin, logoutKakao, getFreshKakaoAccessToken } from '../lib/kakaoAuth'
+import { getFreshKakaoAccessToken } from '../lib/kakaoAuth'
+import { useKakaoAuth } from '../lib/KakaoAuthContext'
 
 function timeAgo(dateStr) {
   const diff = (Date.now() - new Date(dateStr).getTime()) / 1000
@@ -10,16 +11,16 @@ function timeAgo(dateStr) {
   return `${Math.floor(diff / 86400)}일 전`
 }
 
-export default function SchoolComments({ school, loginError }) {
+export default function SchoolComments({ school }) {
+  const { kakaoUser, loginError, login, logout } = useKakaoAuth()
   const [comments, setComments] = useState([])
   const [loading, setLoading] = useState(true)
-  const [kakaoUser, setKakaoUser] = useState(() => getStoredKakaoUser())
   const [loginLoading, setLoginLoading] = useState(false)
   const [content, setContent] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
-  // 로그인 리다이렉트 콜백(ClosedSchoolMap)에서 발생한 에러는 이 컴포넌트가
+  // 로그인 리다이렉트 콜백(KakaoAuthProvider)에서 발생한 에러는 이 컴포넌트가
   // 마운트된 뒤에야 전달되므로, 여기서 받아 기존 에러 표시 영역에 띄운다.
   useEffect(() => {
     if (loginError) setError(loginError)
@@ -42,16 +43,11 @@ export default function SchoolComments({ school, loginError }) {
     try {
       // 성공하면 카카오 로그인 화면으로 페이지 전체가 이동한다(팝업 아님).
       // school.id를 남겨 두면 로그인 후 이 학교가 다시 선택된 상태로 돌아온다.
-      await startKakaoLogin({ schoolId: school.id })
+      await login({ schoolId: school.id })
     } catch (e) {
       setError(e.message || '카카오 로그인에 실패했습니다.')
       setLoginLoading(false)
     }
-  }
-
-  function handleLogout() {
-    logoutKakao()
-    setKakaoUser(null)
   }
 
   async function handleSubmit(e) {
@@ -64,8 +60,7 @@ export default function SchoolComments({ school, loginError }) {
       if (!accessToken) {
         // 리다이렉트 방식이라 여기서 자동으로 재로그인을 띄울 수 없다 —
         // 로그인 폼으로 되돌려서 사용자가 직접 다시 로그인하게 한다.
-        logoutKakao()
-        setKakaoUser(null)
+        logout()
         setError('카카오 로그인이 만료되었습니다. 다시 로그인해주세요.')
         return
       }
@@ -95,7 +90,7 @@ export default function SchoolComments({ school, loginError }) {
               ? <img src={kakaoUser.avatar} alt="" className="school-comment-avatar" />
               : <span className="school-comment-avatar school-comment-avatar-fallback">👤</span>}
             <span>{kakaoUser.nickname}님으로 작성 중</span>
-            <button type="button" className="school-comment-logout" onClick={handleLogout}>로그아웃</button>
+            <button type="button" className="school-comment-logout" onClick={logout}>로그아웃</button>
           </div>
           <textarea
             className="form-textarea"
