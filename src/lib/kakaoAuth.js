@@ -124,12 +124,10 @@ export async function completeKakaoLoginFromUrl() {
     const Kakao = await loadKakaoSdk()
     Kakao.Auth.setAccessToken(tokenData.accessToken)
 
-    const profile = await new Promise((resolve, reject) => {
-      Kakao.API.request({
-        url: '/v2/user/me',
-        success: resolve,
-        fail: (err) => reject(new Error(err?.msg || '카카오 프로필 조회에 실패했습니다.')),
-      })
+    // 최신 카카오 JS SDK는 Kakao.API.request()가 success/fail 콜백이 아니라
+    // Promise를 직접 반환한다(예전 방식은 "Invalid parameter keys" 에러를 던짐).
+    const profile = await Kakao.API.request({ url: '/v2/user/me' }).catch((err) => {
+      throw new Error(err?.msg || err?.message || '카카오 프로필 조회에 실패했습니다.')
     })
 
     const user = {
