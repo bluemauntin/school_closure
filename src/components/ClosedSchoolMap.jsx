@@ -155,13 +155,18 @@ export default function ClosedSchoolMap() {
   const [sido, setSido] = useState('전체')
   const [statusFilter, setStatusFilter] = useState(new Set(STATUS_LABELS))
   const [selected, setSelected] = useState(null)
+  const [loginError, setLoginError] = useState('')
 
   // 카카오 로그인은 이제 전체 페이지 리다이렉트 방식이라, 로그인 후 이 페이지로
   // 돌아오면 어떤 학교를 보고 있었는지 잃어버린다 — 최초 마운트 시 한 번 콜백을
   // 처리하고, 로그인 시작 시 저장해 둔 school.id로 그 학교를 다시 선택해 준다.
   useEffect(() => {
     completeKakaoLoginFromUrl()
-      .then(({ pending }) => {
+      .then(({ pending, error }) => {
+        if (error) {
+          console.error('[ClosedSchoolMap] kakao login failed:', error)
+          setLoginError(error)
+        }
         if (!pending?.schoolId) return
         const school = CLOSED_SCHOOLS.find((s) => s.id === pending.schoolId)
         if (school) setSelected(school)
@@ -282,7 +287,7 @@ export default function ClosedSchoolMap() {
               </div>
 
               <ErrorBoundary fallback={<div className="school-comment-empty">댓글을 불러오지 못했습니다.</div>}>
-                <SchoolComments school={selected} />
+                <SchoolComments school={selected} loginError={loginError} />
               </ErrorBoundary>
             </div>
           ) : (

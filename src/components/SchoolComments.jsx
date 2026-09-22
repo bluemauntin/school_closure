@@ -10,7 +10,7 @@ function timeAgo(dateStr) {
   return `${Math.floor(diff / 86400)}일 전`
 }
 
-export default function SchoolComments({ school }) {
+export default function SchoolComments({ school, loginError }) {
   const [comments, setComments] = useState([])
   const [loading, setLoading] = useState(true)
   const [kakaoUser, setKakaoUser] = useState(() => getStoredKakaoUser())
@@ -18,6 +18,12 @@ export default function SchoolComments({ school }) {
   const [content, setContent] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+
+  // 로그인 리다이렉트 콜백(ClosedSchoolMap)에서 발생한 에러는 이 컴포넌트가
+  // 마운트된 뒤에야 전달되므로, 여기서 받아 기존 에러 표시 영역에 띄운다.
+  useEffect(() => {
+    if (loginError) setError(loginError)
+  }, [loginError])
 
   useEffect(() => {
     let cancelled = false
