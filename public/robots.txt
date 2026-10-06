@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://school-closure.vercel.app/sitemap.xml
