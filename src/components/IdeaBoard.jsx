@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { getIdeas, createIdea, likeIdea, deleteIdea } from '../lib/supabase'
 import { getFreshKakaoAccessToken } from '../lib/kakaoAuth'
 import { useKakaoAuth } from '../lib/KakaoAuthContext'
+import { pushEvent } from '../lib/analytics'
 
 const CATEGORIES = ['전체', '문화·예술', '교육·도서관', '주거·공동체', '농업·생태', '창업·경제', '기타']
 const CAT_EMOJI = { '문화·예술': '🎨', '교육·도서관': '📚', '주거·공동체': '🏡', '농업·생태': '🌱', '창업·경제': '💡', '기타': '✨' }
@@ -94,6 +95,7 @@ export default function IdeaBoard() {
       setIdeas(prev => [created, ...prev])
       setForm({ title: '', content: '', category: '문화·예술' })
       setSuccess(true)
+      pushEvent('submit_idea', { category: form.category })
       setTimeout(() => setSuccess(false), 3000)
     } catch (err) {
       setFormError(`저장 실패: ${err.message}`)
@@ -104,6 +106,7 @@ export default function IdeaBoard() {
 
   async function handleLike(idea) {
     if (likedIds.includes(idea.id)) return
+    pushEvent('like_idea', { idea_id: idea.id })
     try {
       const updated = await likeIdea(idea.id, idea.likes || 0)
       setIdeas(prev => prev.map(i => i.id === idea.id ? { ...i, likes: updated.likes } : i))

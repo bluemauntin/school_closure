@@ -9,6 +9,7 @@ import { predictSchoolClosure } from '../lib/groqApi'
 import { searchSchools, fetchClassCounts } from '../lib/neisApi'
 import { fetchStudentStatus } from '../lib/schoolInfoApi'
 import { buildTenYearTrend, estimateClosureTrend, buildExpectedYearText, buildTrendBasisText } from '../lib/trend'
+import { pushEvent } from '../lib/analytics'
 
 ChartJS.register(CategoryScale, LinearScale, LineElement, PointElement, Filler, Tooltip)
 
@@ -155,6 +156,7 @@ export default function SchoolPredictor() {
           expectedYear: buildExpectedYearText(trend, result.risk),
           trendBasis: buildTrendBasisText(trend),
         })
+        pushEvent('predict_school', { school_name: school.name, risk: result.risk })
       } catch (e) {
         setError(e.message || 'AI 예측 중 오류가 발생했습니다.')
       } finally {
@@ -208,6 +210,7 @@ export default function SchoolPredictor() {
         expectedYear: buildExpectedYearText(trend, result.risk),
         trendBasis: buildTrendBasisText(trend),
       })
+      pushEvent('predict_school', { school_name: school.name, risk: result.risk })
     } catch (e) {
       setError(e.message || 'AI 예측 중 오류가 발생했습니다.')
     } finally {

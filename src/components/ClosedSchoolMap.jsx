@@ -4,6 +4,7 @@ import CLOSED_SCHOOLS from '../data/closedSchools.json'
 import SchoolComments from './SchoolComments'
 import ErrorBoundary from './ErrorBoundary'
 import { useKakaoAuth } from '../lib/KakaoAuthContext'
+import { pushEvent } from '../lib/analytics'
 
 // 사이트 전역 위험도 팔레트(risk-low/medium/high)와 동일한 색으로 통일:
 // 자체활용(계속 쓰이는 중) = good, 대부(남에게 넘어간 상태) = 중립, 미활용(방치) = 주의
@@ -242,7 +243,7 @@ export default function ClosedSchoolMap() {
                       position={{ lat: s.markerLat, lng: s.markerLng }}
                       image={MARKER_IMAGES[s.status]}
                       title={s.name}
-                      onClick={() => setSelected(s)}
+                      onClick={() => { setSelected(s); pushEvent('view_school_map', { school_id: s.id, school_name: s.name }) }}
                       onCreate={(marker) => { marker.__status = s.status }}
                     />
                   ))}
